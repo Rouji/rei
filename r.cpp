@@ -57,7 +57,7 @@ public:
         //see if it's already in the db
         //abort if it is
         mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
-        MDB_dbi dbi_doc_name = dbi_open(txn, "document_name");
+        auto dbi_doc_name = dbi_open(txn, "document_name");
         k.mv_data=&name_hash;
         k.mv_size=sizeof(name_hash);
         auto ret = mdb_get(txn, dbi_doc_name, &k, &v);
@@ -69,11 +69,11 @@ public:
         }
 
         mdb_txn_begin(env, nullptr, 0, &txn);
-        MDB_dbi dbi_doc_cont = dbi_open(txn, "document_content");
         v.mv_data = (void*)name.c_str();
         v.mv_size = name.size();
         mdb_put(txn, dbi_doc_name, &k, &v, 0);
 
+        auto dbi_doc_cont = dbi_open(txn, "document_content");
         v.mv_data = (void*)ptr;
         v.mv_size = size;
         mdb_put(txn, dbi_doc_cont, &k, &v, 0);
@@ -85,7 +85,7 @@ public:
         std::unordered_map<std::string, std::vector<WordIdx>> locations{};
 
         mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
-        MDB_dbi dbi_words = dbi_open(txn, "word_idx");
+        auto dbi_words = dbi_open(txn, "word_idx");
         for (MecabParser::Node n; parser.next(n);)
         {
             //skip stopwords
@@ -144,10 +144,10 @@ public:
     bool find_word(const std::string& word, std::vector<WordIdx>* idx = nullptr)
     {
         MDB_val k{word.length(), (void*)word.c_str()}, v;
-        MDB_txn* txn;
-        mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
-        MDB_dbi dbi_words = dbi_open(txn, "word_idx");
-        if (mdb_get(txn, dbi_words, &k, &v) == MDB_NOTFOUND)
+        AutoCommit ac{};
+        mdb_txn_begin(env, nullptr, MDB_RDONLY, &ac.txn);
+        auto dbi_words = dbi_open(ac.txn, "word_idx");
+        if (mdb_get(ac.txn, dbi_words, &k, &v) == MDB_NOTFOUND)
             return false;
         if (idx)
         {
@@ -157,9 +157,29 @@ public:
         return true;
     }
 
+    const std::string& document_name(uint32_t hash)
+    {
+        auto it = doc_name_cache.find(hash);
+        if (it != doc_name_cache.end())
+            return it->second;
+
+        MDB_txn* txn;
+        MDB_val k{sizeof(hash), &hash}, v;
+        auto ret = mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
+        auto dbi = dbi_open(txn, "document_name");
+        mdb_get(txn, dbi, &k, &v);
+        it = doc_name_cache.insert(
+            std::pair<uint32_t, std::string>(
+                hash,
+                std::string{(char*)v.mv_data,v.mv_size}
+            )
+        ).first;
+        mdb_txn_commit(txn);
+        return it->second;
+    }
+
 
 private:
-
     MDB_dbi dbi_open(MDB_txn *txn, const std::string& name)
     {
         auto pair = dbi_cache.find(name);
@@ -184,8 +204,17 @@ private:
             mdb_dbi_close(env, pair.second);
     }
 
+    class AutoCommit
+    {
+    public:
+        AutoCommit(MDB_txn* mdb_txn = nullptr) : txn(mdb_txn) {}
+        ~AutoCommit() {mdb_txn_commit(txn);}
+        MDB_txn *txn;
+    };
+
     MDB_env* env;
     std::unordered_map<std::string, MDB_dbi> dbi_cache; //MDB_dbi is just an unsigned int
+    std::unordered_map<uint32_t, std::string> doc_name_cache;
     const std::unordered_set<std::string> &stopwords;
 };
 const std::unordered_set<std::string> LmdbFullText::default_stopwords = { "。", "？", "?", "、" };
@@ -202,10 +231,11 @@ int main(int argc, char **argv)
     std::string db = "test.mdb";
     LmdbFullText lft{db};
     lft.add_document(name, input_file);
-    /*std::vector<LmdbFullText::WordIdx> idx{};
-    lft.find_word("何", &idx);
+    /*
+    std::vector<LmdbFullText::WordIdx> idx{};
+    lft.find_word(name, &idx);
     for (auto i : idx)
-        std::cout<<i.parts[1]<<" ";
+        std::printf("doc %u(%s) at %d\n", i.parts[0], lft.document_name(i.parts[0]).c_str(), i.parts[1]);
         */
 
     return 0;

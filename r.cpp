@@ -48,7 +48,7 @@ public:
 
     bool add_document(const std::string& name, const void* ptr, std::size_t size)
     {
-        MDB_val k{0,0}, v{0,0};
+        MDB_val k{0, 0}, v{0, 0};
         MDB_txn* txn;
 
 
@@ -58,13 +58,13 @@ public:
         //abort if it is
         mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
         auto dbi_doc_name = dbi_open(txn, "document_name");
-        k.mv_data=&name_hash;
-        k.mv_size=sizeof(name_hash);
+        k.mv_data = &name_hash;
+        k.mv_size = sizeof(name_hash);
         auto ret = mdb_get(txn, dbi_doc_name, &k, &v);
         mdb_txn_commit(txn);
         if (ret == 0) // already exists
         {
-            std::cout<<"document already in db\n";
+            std::cout << "document already in db\n";
             return false; //TODO: add error codes?
         }
 
@@ -97,21 +97,18 @@ public:
             if (it == locations.end())
             {
                 std::tie(it, std::ignore) = locations.insert(
-                    std::pair<std::string, std::vector<WordIdx>>(
-                        n.base,
-                        std::vector<WordIdx>{}
-                    )
-                );
+                                                std::pair<std::string, std::vector<WordIdx>>(
+                                                    n.base,
+                                                    std::vector<WordIdx> {}
+                                                )
+                                            );
                 k.mv_data = (void*)n.base.c_str();
                 k.mv_size = n.base.length();
                 auto ret = mdb_get(txn, dbi_words, &k, &v);
-                if (ret ==0)
+                if (ret == 0)
                 {
-                    auto num = v.mv_size/sizeof(WordIdx);
-                    //std::cout<<"reading "<< num <<" indices from db for:"<<n.base<<std::endl;
-                    it->second.insert(it->second.end(), (WordIdx*)v.mv_data, ((WordIdx*)v.mv_data)+num);
-                    //for (auto i=0; i<num; ++i)
-                    //    it->second.push_back(((WordIdx*)v.mv_data)[i]);
+                    auto num = v.mv_size / sizeof(WordIdx);
+                    it->second.insert(it->second.end(), (WordIdx*)v.mv_data, ((WordIdx*)v.mv_data) + num);
                 }
             }
             WordIdx idx;
@@ -126,7 +123,7 @@ public:
         {
             k.mv_size = loc.first.length();
             k.mv_data = (void*)loc.first.c_str();
-            v.mv_size = loc.second.size()*sizeof(WordIdx);
+            v.mv_size = loc.second.size() * sizeof(WordIdx);
             v.mv_data = loc.second.data();
             mdb_put(txn, dbi_words, &k, &v, 0);
         }
@@ -151,8 +148,8 @@ public:
             return false;
         if (idx)
         {
-            auto num = v.mv_size/sizeof(WordIdx);
-            idx->insert(idx->end(), (WordIdx*)v.mv_data, ((WordIdx*)v.mv_data)+num);
+            auto num = v.mv_size / sizeof(WordIdx);
+            idx->insert(idx->end(), (WordIdx*)v.mv_data, ((WordIdx*)v.mv_data) + num);
         }
         return true;
     }
@@ -169,11 +166,11 @@ public:
         auto dbi = dbi_open(txn, "document_name");
         mdb_get(txn, dbi, &k, &v);
         it = doc_name_cache.insert(
-            std::pair<uint32_t, std::string>(
-                hash,
-                std::string{(char*)v.mv_data,v.mv_size}
-            )
-        ).first;
+                 std::pair<uint32_t, std::string>(
+                     hash,
+                     std::string{(char*)v.mv_data, v.mv_size}
+                 )
+             ).first;
         mdb_txn_commit(txn);
         return it->second;
     }
@@ -208,7 +205,10 @@ private:
     {
     public:
         AutoCommit(MDB_txn* mdb_txn = nullptr) : txn(mdb_txn) {}
-        ~AutoCommit() {mdb_txn_commit(txn);}
+        ~AutoCommit()
+        {
+            mdb_txn_commit(txn);
+        }
         MDB_txn *txn;
     };
 
@@ -223,7 +223,7 @@ int main(int argc, char **argv)
 {
     if (argc != 3)
     {
-        std::cout<<"usage: "<<argv[0]<<" <file> <name>\n";
+        std::cout << "usage: " << argv[0] << " <file> <name>\n";
         return 1;
     }
     std::string input_file{argv[1]};

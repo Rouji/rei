@@ -45,10 +45,13 @@ public:
 private:
     class Span
     {
-        public:
-            Span(std::size_t s, std::size_t e) : start(s), end(e) {}
-            Span() : start(0), end(0) {}
-            std::size_t length() const {return end-start;}
+    public:
+        Span(std::size_t s, std::size_t e) : start(s), end(e) {}
+        Span() : start(0), end(0) {}
+        std::size_t length() const
+        {
+            return end - start;
+        }
 
         std::size_t start;
         std::size_t end;
@@ -65,9 +68,9 @@ private:
         if (s.end >= size) // we're at the end
             return false;
 
-        s.start = s.end == 0 ? 0 : s.end+1;
+        s.start = s.end == 0 ? 0 : s.end + 1;
         ++s.end;
-        for (;s.end < size && input[s.end] != '\n'; ++s.end)
+        for (; s.end < size && input[s.end] != '\n'; ++s.end)
             ;
 
         return true;

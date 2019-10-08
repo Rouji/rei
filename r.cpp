@@ -18,7 +18,7 @@ public:
     union WordIdx
     {
         uint64_t n;
-        uint32_t parts[2];
+        uint32_t parts[2]; //{doc idx, word location}
     };
 
     LmdbFullText(std::string& db_path, const std::unordered_set<std::string>& stopwords = default_stopwords) : stopwords(stopwords)
@@ -34,9 +34,9 @@ public:
          */
         MDB_txn* txn;
         mdb_txn_begin(env, nullptr, 0, &txn);
-        dbi_open(txn, "word_idx");
+        dbi_open(txn, "word_idx", /*MDB_INTEGERKEY |*/ MDB_DUPFIXED | MDB_DUPSORT);
         dbi_open(txn, "document_content");
-        dbi_open(txn, "document_name");
+        dbi_open(txn, "document_info");
         mdb_txn_commit(txn);
     }
 
@@ -46,6 +46,9 @@ public:
         mdb_env_close(env);
     }
 
+    /* //TODO: use MDB_MULTIPLE and MDB_APPENDDUP to append to the location values
+     * in DB instead of loading all of them and overwriting
+     */
     bool add_document(const std::string& name, const void* ptr, std::size_t size)
     {
         MDB_val k{0, 0}, v{0, 0};
@@ -57,7 +60,7 @@ public:
         //see if it's already in the db
         //abort if it is
         mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
-        auto dbi_doc_name = dbi_open(txn, "document_name");
+        auto dbi_doc_name = dbi_open(txn, "document_info");
         k.mv_data = &name_hash;
         k.mv_size = sizeof(name_hash);
         auto ret = mdb_get(txn, dbi_doc_name, &k, &v);
@@ -82,44 +85,81 @@ public:
 
         MecabParser parser{(const char*)ptr, size};
 
-        std::unordered_map<std::string, std::vector<WordIdx>> locations{};
+        std::unordered_map<std::string, std::vector<WordIdx>> word_locations{};
 
-        mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
-        auto dbi_words = dbi_open(txn, "word_idx");
+        //mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
+        //auto dbi_words = dbi_open(txn, "word_idx");
         for (MecabParser::Node n; parser.next(n);)
         {
             //skip stopwords
             if (stopwords.find(n.base) != stopwords.end())
                 continue;
 
-            //load indices for the word from db if they're not already in the map
-            auto it = locations.find(n.base);
-            if (it == locations.end())
+            auto it = word_locations.find(n.base);
+            if (it == word_locations.end())
             {
-                std::tie(it, std::ignore) = locations.insert(
+                std::tie(it, std::ignore) = word_locations.insert(
                                                 std::pair<std::string, std::vector<WordIdx>>(
                                                     n.base,
                                                     std::vector<WordIdx> {}
                                                 )
                                             );
-                k.mv_data = (void*)n.base.c_str();
-                k.mv_size = n.base.length();
-                auto ret = mdb_get(txn, dbi_words, &k, &v);
-                if (ret == 0)
-                {
-                    auto num = v.mv_size / sizeof(WordIdx);
-                    it->second.insert(it->second.end(), (WordIdx*)v.mv_data, ((WordIdx*)v.mv_data) + num);
-                }
             }
             WordIdx idx;
             idx.parts[0] = name_hash;
             idx.parts[1] = n.location;
             it->second.push_back(idx);
         }
+        //mdb_txn_commit(txn);
+
+        MDB_cursor* c;
+        mdb_txn_begin(env, nullptr, 0, &txn);
+        auto dbi_words = dbi_open(txn, "word_idx");
+        mdb_cursor_open(txn, dbi_words, &c);
+        MDB_val vv[2];
+        for (const auto& wloc: word_locations)
+        {
+            k.mv_data = const_cast<char*>(wloc.first.c_str());
+            k.mv_size = wloc.first.length();
+            vv[0].mv_size = sizeof(WordIdx);
+            vv[0].mv_data = const_cast<WordIdx*>(wloc.second.data());
+            vv[1].mv_size = wloc.second.size();
+            auto r = mdb_cursor_put(c, &k, vv, MDB_MULTIPLE);
+            if (r) std::cout<<r<<" 1\n";
+
+            /*
+            k.mv_data = (void*)wloc.first.c_str();
+            k.mv_size = wloc.first.length();
+            vv[0].mv_size = sizeof(WordIdx);
+            for (const auto& loc : wloc.second)
+            {
+                vv[0].mv_data = wloc.second.data();
+                auto r = mdb_cursor_put(c, &k, &vv[0], 0);
+            }
+            */
+
+        }
+        mdb_cursor_close(c);
         mdb_txn_commit(txn);
 
+
+        mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
+        mdb_cursor_open(txn, dbi_words, &c);
+        k.mv_data = (void*)"何";
+        k.mv_size = 3;
+        auto r = mdb_cursor_get(c, &k, &v, MDB_SET); //returns MDB_NOTFOUND
+        if (r) std::cout<<r<<" 2\n";
+        assert(mdb_cursor_get(c, &k, &v, MDB_GET_MULTIPLE) == 0);
+        do
+        {
+            std::printf("%d %d %d %d\n", k.mv_data, k.mv_size, v.mv_data, v.mv_size);
+        } while (mdb_cursor_get(c, &k, &v, MDB_NEXT_MULTIPLE) == 0);
+        mdb_cursor_close(c);
+        mdb_txn_commit(txn);
+
+        /*
         mdb_txn_begin(env, nullptr, 0, &txn);
-        for (auto loc : locations)
+        for (auto loc : word_locations)
         {
             k.mv_size = loc.first.length();
             k.mv_data = (void*)loc.first.c_str();
@@ -128,6 +168,8 @@ public:
             mdb_put(txn, dbi_words, &k, &v, 0);
         }
         mdb_txn_commit(txn);
+        */
+
 
         return true;
     }
@@ -154,7 +196,7 @@ public:
         return true;
     }
 
-    const std::string& document_name(uint32_t hash)
+    const std::string& document_info(uint32_t hash)
     {
         auto it = doc_name_cache.find(hash);
         if (it != doc_name_cache.end())
@@ -163,7 +205,7 @@ public:
         MDB_txn* txn;
         MDB_val k{sizeof(hash), &hash}, v;
         auto ret = mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
-        auto dbi = dbi_open(txn, "document_name");
+        auto dbi = dbi_open(txn, "document_info");
         mdb_get(txn, dbi, &k, &v);
         it = doc_name_cache.insert(
                  std::pair<uint32_t, std::string>(
@@ -177,13 +219,13 @@ public:
 
 
 private:
-    MDB_dbi dbi_open(MDB_txn *txn, const std::string& name)
+    MDB_dbi dbi_open(MDB_txn *txn, const std::string& name, unsigned int flags = 0)
     {
         auto pair = dbi_cache.find(name);
         if (pair != dbi_cache.end())
             return pair->second;
         MDB_dbi dbi;
-        mdb_dbi_open(txn, name.c_str(), MDB_CREATE, &dbi);
+        mdb_dbi_open(txn, name.c_str(), MDB_CREATE | flags, &dbi);
         dbi_cache[name] = dbi;
         return dbi;
     }
@@ -233,10 +275,9 @@ int main(int argc, char **argv)
     lft.add_document(name, input_file);
     /*
     std::vector<LmdbFullText::WordIdx> idx{};
-    lft.find_word(name, &idx);
+    lft.find_word("何", &idx);
     for (auto i : idx)
-        std::printf("doc %u(%s) at %d\n", i.parts[0], lft.document_name(i.parts[0]).c_str(), i.parts[1]);
-        */
-
+        std::printf("doc %u(%s) at %d\n", i.parts[0], lft.document_info(i.parts[0]).c_str(), i.parts[1]);
+    */
     return 0;
 }

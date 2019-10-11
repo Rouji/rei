@@ -24,7 +24,7 @@ int main(int argc, char **argv)
     }
     else if (noun == "word")
     {
-        if (verb == "indexes")
+        if (verb == "indices")
         {
             std::string word{*(argv++)};
             auto it = lft.word_iterator(word);

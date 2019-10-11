@@ -162,6 +162,30 @@ public:
         MDB_val _v{0, nullptr};
     };
 
+    template <typename T>
+    class LmdbValueView
+    {
+    public:
+        LmdbValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key) : _txn{env, MDB_RDONLY, true}
+        {
+            _txn.get(dbi, key, &_val);
+        }
+
+        const T* ptr()
+        {
+            return (T*)_val.mv_data;
+        }
+
+        size_t size()
+        {
+            return _val.mv_size;
+        }
+
+    private:
+        MDB_val _val{0,0};
+        lmdbpp::Txn _txn;
+    };
+
     bool add_document(const std::string& name, const std::string& file_path)
     {
         Mmap mmap{file_path};
@@ -171,7 +195,14 @@ public:
     LmdbMultipleIterator<WordIdx> word_iterator(const std::string& word)
     {
         MDB_val k{word.length(), const_cast<char*>(word.c_str())};
-        return LmdbMultipleIterator<WordIdx>(env, dbi_word_idx, k);
+        return LmdbMultipleIterator<WordIdx>{env, dbi_word_idx, k};
+    }
+
+    LmdbValueView<char> view_document(const std::string& name)
+    {
+        auto hash = strhash(name.c_str());
+        MDB_val k{sizeof(hash), &hash};
+        return LmdbValueView<char>{env, dbi_document_content, &k};
     }
 
     size_t occurrence_count(const std::string& word)

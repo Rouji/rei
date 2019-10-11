@@ -177,14 +177,14 @@ public:
         mdb_txn_abort(_txn);
     }
 
-    void get(MDB_dbi dbi, MDB_val* val, MDB_val* key)
+    void get(MDB_dbi dbi, MDB_val* key, MDB_val* val)
     {
-        check(mdb_get(_txn, dbi, val, key));
+        check(mdb_get(_txn, dbi, key, val));
     }
 
-    void put(MDB_dbi dbi, MDB_val* val, MDB_val* key, unsigned int flags = 0)
+    void put(MDB_dbi dbi, MDB_val* key, MDB_val* val, unsigned int flags = 0)
     {
-        check(mdb_put(_txn, dbi, val, key, flags));
+        check(mdb_put(_txn, dbi, key, val, flags));
     }
 
     Dbi open_dbi(const char* name, unsigned int flags = 0)

@@ -1,41 +1,51 @@
 #include "lmdbfulltext.h"
 #include <string>
+#include <string_view>
 
 int main(int argc, char **argv)
 {
-    ++argv;
-    std::string noun{*(argv++)};
-    std::string verb{*(argv++)};
+    std::vector<std::string> args{argv, argv+argc};
+    if (args.size() < 4)
+    {
+        std::cerr<<"usage: "<<args[0]<<" <db> <noun> <verb> [options]"<<std::endl;
+        return 1;
+    }
 
-    std::string db = "test.mdb";
+    auto arg = args.begin();
+    std::string& db = *(++arg);
+    std::string& noun = *(++arg);
+    std::string& verb = *(++arg);
+
     LmdbFullText lft{db};
 
     if (noun == "doc")
     {
-        std::string name{*(argv++)};
+        const std::string& name{*(++arg)};
         if (verb == "add")
         {
-            std::string input_file{*(argv++)};
+            std::string& input_file{*(++arg)};
             lft.add_document(name, input_file);
         }
         else if (verb == "print")
         {
+            auto view = lft.view_document(name);
+            std::cout<<std::string_view{view.ptr(), view.size()}<<std::endl;
         }
     }
     else if (noun == "word")
     {
         if (verb == "indices")
         {
-            std::string word{*(argv++)};
+            std::string& word{*(++arg)};
             auto it = lft.word_iterator(word);
             for (const LmdbFullText::WordIdx * w; it.next(&w);)
             {
-                std::cout << w->n << '\n';
+                std::cout << w->parts[0] << " | " << w->parts[1] << '\n';
             }
         }
-        else if (verb == "occurrences")
+        else if (verb == "count")
         {
-            std::string word{*(argv++)};
+            std::string& word{*(++arg)};
             std::cout << lft.occurrence_count(word) << std::endl;
         }
     }

@@ -37,21 +37,27 @@ int main(int argc, char **argv)
         if (verb == "indices")
         {
             std::string& word{*(++arg)};
-            auto it = lft.word_iterator(word);
+            auto it = lft.word_indices(word);
+            /*
             for (const LmdbFullText::WordIdx * w; it.next(&w);)
             {
                 std::cout << w->parts[0] << " | " << w->parts[1] << '\n';
+            }
+            */
+            for (const auto& i : it)
+            {
+                std::cout << i.n << '\n';
             }
         }
         else if (verb == "count")
         {
             std::string& word{*(++arg)};
-            std::cout << lft.occurrence_count(word) << std::endl;
+            std::cout << lft.word_occurrence_count(word) << std::endl;
         }
     }
     /*
+     * //TODO:
      * list documents
-     * print document
      * tokenize: print whatever the tokeniser (mecab) makes of a string
      * idx context: print text around a wordidx
      * examples: iterate through all occurences of a word and print their surroundings

@@ -25,14 +25,14 @@ public:
 
     LmdbFullText(std::string& db_path, const std::unordered_set<std::string>& stopwords = default_stopwords) : stopwords(stopwords)
     {
-        env.set_maxdbs(3);
-        env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 1024UL); //1tib
-        env.open(db_path);
+        _env.set_maxdbs(3);
+        _env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 1024UL); //1tib
+        _env.open(db_path);
 
-        lmdbpp::Txn txn(env, 0, true);
-        dbi_document_content = txn.open_dbi("document_content", MDB_CREATE);
-        dbi_document_info = txn.open_dbi("document_info", MDB_CREATE);
-        dbi_word_idx = txn.open_dbi("word_idx", MDB_CREATE | MDB_DUPFIXED | MDB_DUPSORT);
+        lmdbpp::Txn txn(_env, 0, true);
+        _dbi_document_content = txn.open_dbi("document_content", MDB_CREATE);
+        _dbi_document_info = txn.open_dbi("document_info", MDB_CREATE);
+        _dbi_word_idx = txn.open_dbi("word_idx", MDB_CREATE | MDB_DUPFIXED | MDB_DUPSORT);
     }
 
     ~LmdbFullText()
@@ -49,12 +49,12 @@ public:
             k.mv_data = &name_hash;
             k.mv_size = sizeof(name_hash);
 
-            lmdbpp::Txn txn{env, 0, true};
+            lmdbpp::Txn txn{_env, 0, true};
             v.mv_data = (void*)name.c_str();
             v.mv_size = name.size();
             try
             {
-                txn.put(dbi_document_info, &k, &v, MDB_NOOVERWRITE);
+                txn.put(_dbi_document_info, &k, &v, MDB_NOOVERWRITE);
             }
             catch (lmdbpp::Error& e)
             {
@@ -63,11 +63,15 @@ public:
                     std::cout<<"document "<<name<<" already exists"<<std::endl; //TODO
                     return false;
                 }
+                else
+                {
+                    throw;
+                }
             }
 
             v.mv_data = (void*)ptr;
             v.mv_size = size;
-            txn.put(dbi_document_content, &k, &v);
+            txn.put(_dbi_document_content, &k, &v);
         }
 
 
@@ -100,8 +104,8 @@ public:
         }
 
         {
-            lmdbpp::Txn txn{env, 0, true};
-            lmdbpp::Cursor c{txn, dbi_word_idx, true};
+            lmdbpp::Txn txn{_env, 0, true};
+            lmdbpp::Cursor c{txn, _dbi_word_idx, true};
             MDB_val vv[2];
             for (const auto& wloc : word_locations)
             {
@@ -117,102 +121,33 @@ public:
         return true;
     }
 
-    template <typename T>
-    class LmdbMultipleIterator
-    {
-    public:
-        LmdbMultipleIterator(MDB_env* env, MDB_dbi dbi, MDB_val key) : _k(key), _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true}
-        {}
-
-        bool next(T const** item)
-        {
-            if (_v.mv_data == nullptr || _v.mv_size == 0)
-            {
-                int r;
-                try
-                {
-                    if (_v.mv_data == nullptr)
-                    {
-                        _c.get(&_k, &_v, MDB_SET);
-                        _c.get(&_k, &_v, MDB_GET_MULTIPLE);
-                    }
-                    else
-                    {
-                        _c.get(&_k, &_v, MDB_NEXT_MULTIPLE);
-                    }
-                }
-                catch(lmdbpp::Error& e)
-                {
-                    *item = 0;
-                    return false;
-                }
-            }
-
-            *item = (T*)_v.mv_data;
-            _v.mv_size -= sizeof(T);
-            _v.mv_data = ((T*)_v.mv_data) + 1;
-
-            return true;
-        }
-
-    private:
-        lmdbpp::Txn _txn;
-        lmdbpp::Cursor _c;
-        MDB_val _k;
-        MDB_val _v{0, nullptr};
-    };
-
-    template <typename T>
-    class LmdbValueView
-    {
-    public:
-        LmdbValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key) : _txn{env, MDB_RDONLY, true}
-        {
-            _txn.get(dbi, key, &_val);
-        }
-
-        const T* ptr()
-        {
-            return (T*)_val.mv_data;
-        }
-
-        size_t size()
-        {
-            return _val.mv_size;
-        }
-
-    private:
-        MDB_val _val{0,0};
-        lmdbpp::Txn _txn;
-    };
-
     bool add_document(const std::string& name, const std::string& file_path)
     {
         Mmap mmap{file_path};
         return add_document(name, mmap.ptr(), mmap.size());
     }
 
-    LmdbMultipleIterator<WordIdx> word_iterator(const std::string& word)
+    lmdbpp::MultipleValueView<WordIdx> word_indices(const std::string& word)
     {
         MDB_val k{word.length(), const_cast<char*>(word.c_str())};
-        return LmdbMultipleIterator<WordIdx>{env, dbi_word_idx, k};
+        return lmdbpp::MultipleValueView<WordIdx>{_env, _dbi_word_idx, k};
     }
 
-    LmdbValueView<char> view_document(const std::string& name)
+    lmdbpp::ValueView<char> view_document(const std::string& name)
     {
         auto hash = strhash(name.c_str());
         MDB_val k{sizeof(hash), &hash};
-        return LmdbValueView<char>{env, dbi_document_content, &k};
+        return lmdbpp::ValueView<char>{_env, _dbi_document_content, &k};
     }
 
-    size_t occurrence_count(const std::string& word)
+    size_t word_occurrence_count(const std::string& word)
     {
         size_t count = 0;
         MDB_val k{word.length(), const_cast<char*>(word.c_str())};
         MDB_val v{0, nullptr};
 
-        lmdbpp::Txn txn{env, MDB_RDONLY, true};
-        lmdbpp::Cursor c{txn, dbi_word_idx, true};
+        lmdbpp::Txn txn{_env, MDB_RDONLY, true};
+        lmdbpp::Cursor c{txn, _dbi_word_idx, true};
         try
         {
             c.get(&k, &v, MDB_SET);
@@ -235,8 +170,8 @@ public:
     {
         MDB_txn* txn;
         MDB_val k{sizeof(hash), &hash}, v;
-        auto ret = mdb_txn_begin(env, nullptr, MDB_RDONLY, &txn);
-        mdb_get(txn, dbi_document_info, &k, &v);
+        auto ret = mdb_txn_begin(_env, nullptr, MDB_RDONLY, &txn);
+        mdb_get(txn, _dbi_document_info, &k, &v);
         std::string name{(char*)v.mv_data, v.mv_size};
         mdb_txn_commit(txn);
         return name;
@@ -251,10 +186,10 @@ private:
         return (uint32_t)h;
     }
 
-    lmdbpp::Env env;
-    lmdbpp::Dbi dbi_word_idx;
-    lmdbpp::Dbi dbi_document_info;
-    lmdbpp::Dbi dbi_document_content;
+    lmdbpp::Env _env;
+    lmdbpp::Dbi _dbi_word_idx;
+    lmdbpp::Dbi _dbi_document_info;
+    lmdbpp::Dbi _dbi_document_content;
     const std::unordered_set<std::string> &stopwords;
 };
 const std::unordered_set<std::string> LmdbFullText::default_stopwords = { "。", "？", "?", "、" };

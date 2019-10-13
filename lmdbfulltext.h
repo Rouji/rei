@@ -15,15 +15,13 @@
 class LmdbFullText
 {
 public:
-    static const std::unordered_set<std::string> default_stopwords;
-
     union WordIdx
     {
         uint64_t n;
         uint32_t parts[2]; //{doc idx, word location}
     };
 
-    LmdbFullText(std::string& db_path, const std::unordered_set<std::string>& stopwords = default_stopwords) : stopwords(stopwords)
+    LmdbFullText(std::string& db_path)
     {
         _env.set_maxdbs(3);
         _env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 1024UL); //1tib
@@ -82,11 +80,6 @@ public:
         MDB_txn* txn;
         for (MecabParser::Node n; parser.next(n);)
         {
-            //skip stopwords
-            //TODO move this to the mecabparser
-            if (stopwords.find(n.base) != stopwords.end())
-                continue;
-
             auto it = word_locations.find(n.base);
             if (it == word_locations.end())
             {
@@ -190,8 +183,6 @@ private:
     lmdbpp::Dbi _dbi_word_idx;
     lmdbpp::Dbi _dbi_document_info;
     lmdbpp::Dbi _dbi_document_content;
-    const std::unordered_set<std::string> &stopwords;
 };
-const std::unordered_set<std::string> LmdbFullText::default_stopwords = { "。", "？", "?", "、" };
 
 #endif

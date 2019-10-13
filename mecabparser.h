@@ -1,9 +1,12 @@
 #include <string>
 #include <mecab.h>
+#include <unordered_set>
 
 class MecabParser
 {
 public:
+    static const std::unordered_set<std::string> default_stopwords;
+
     struct Node
     {
         uint32_t location;   // offset in bytes inside the document
@@ -12,8 +15,8 @@ public:
         std::string reading; // reading in kana
     };
 
-    MecabParser(char const *input, std::size_t size)
-        : input(input), tagger{0}, size(size), mc_node(nullptr)
+    MecabParser(char const *input, std::size_t size, const std::unordered_set<std::string>& stopwords = default_stopwords)
+        : input(input), tagger{0}, size(size), mc_node(nullptr), _stopwords(stopwords)
     {
         tagger = MeCab::createTagger("");
         if (!tagger) throw std::runtime_error{"couldn't create MeCab tagger"};
@@ -34,7 +37,11 @@ public:
         out_node.word = std::string{mc_node->surface, mc_node->length};
         parse_mecab_feature(mc_node, out_node);
 
-        return true;
+        if (_stopwords.find(out_node.base) == _stopwords.end())
+        {
+            return true;
+        }
+        return next(out_node);
     }
 
     ~MecabParser()
@@ -62,6 +69,7 @@ private:
     std::size_t size;
     Span span;
     const MeCab::Node *mc_node;
+    const std::unordered_set<std::string>& _stopwords;
 
     bool next_span(Span &s) const
     {
@@ -105,3 +113,5 @@ private:
         }
     }
 };
+
+const std::unordered_set<std::string> MecabParser::default_stopwords = { "。", "？", "?", "、" };

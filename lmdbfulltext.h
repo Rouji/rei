@@ -38,21 +38,19 @@ public:
 
     bool add_document(const std::string& name, const void* ptr, std::size_t size)
     {
-        MDB_val k{0, 0}, v{0, 0};
-
         auto name_hash = strhash(name);
 
         //write document info and content
         {
-            k.mv_data = &name_hash;
-            k.mv_size = sizeof(name_hash);
+            lmdbpp::KeyVal<decltype(name_hash),char> kv{
+                {&name_hash, sizeof(name_hash)},
+                {name}
+            };
 
             lmdbpp::Txn txn{_env, 0, true};
-            v.mv_data = (void*)name.c_str();
-            v.mv_size = name.size();
             try
             {
-                txn.put(_dbi_document_info, &k, &v, MDB_NOOVERWRITE);
+                txn.put(_dbi_document_info, kv, MDB_NOOVERWRITE);
             }
             catch (lmdbpp::Error& e)
             {
@@ -67,9 +65,7 @@ public:
                 }
             }
 
-            v.mv_data = (void*)ptr;
-            v.mv_size = size;
-            txn.put(_dbi_document_content, &k, &v);
+            txn.put(_dbi_document_content, kv.key, lmdbpp::Val<void>{ptr, size});
         }
 
 
@@ -78,6 +74,7 @@ public:
         std::unordered_map<std::string, std::vector<WordIdx>> word_locations{};
 
         MDB_txn* txn;
+        WordIdx idx;
         for (MecabParser::Node n; parser.next(n);)
         {
             auto it = word_locations.find(n.base);
@@ -90,7 +87,6 @@ public:
                                                 )
                                             );
             }
-            WordIdx idx;
             idx.parts[0] = name_hash;
             idx.parts[1] = n.location;
             it->second.push_back(idx);
@@ -99,15 +95,13 @@ public:
         {
             lmdbpp::Txn txn{_env, 0, true};
             lmdbpp::Cursor c{txn, _dbi_word_idx, true};
-            MDB_val vv[2];
+            lmdbpp::Val<char> k;
+            lmdbpp::MultiVal<WordIdx> v;
             for (const auto& wloc : word_locations)
             {
-                k.mv_data = const_cast<char*>(wloc.first.c_str());
-                k.mv_size = wloc.first.length();
-                vv[0].mv_size = sizeof(WordIdx);
-                vv[0].mv_data = const_cast<WordIdx*>(wloc.second.data());
-                vv[1].mv_size = wloc.second.size();
-                c.put(&k, vv, MDB_MULTIPLE);
+                k = lmdbpp::Val<char>{wloc.first};
+                v = lmdbpp::MultiVal<WordIdx>{wloc.second};
+                c.put(k, v, MDB_MULTIPLE);
             }
         }
 
@@ -122,33 +116,29 @@ public:
 
     lmdbpp::MultipleValueView<WordIdx> word_indices(const std::string& word)
     {
-        MDB_val k{word.length(), const_cast<char*>(word.c_str())};
-        return lmdbpp::MultipleValueView<WordIdx>{_env, _dbi_word_idx, k};
+        return lmdbpp::MultipleValueView<WordIdx>{_env, _dbi_word_idx, lmdbpp::Val<char>{word}};
     }
 
     lmdbpp::ValueView<char> view_document(const std::string& name)
     {
         auto hash = strhash(name.c_str());
-        MDB_val k{sizeof(hash), &hash};
-        return lmdbpp::ValueView<char>{_env, _dbi_document_content, &k};
+        return lmdbpp::ValueView<char>{_env, _dbi_document_content, lmdbpp::Val<decltype(hash)>{&hash}};
     }
 
     size_t word_occurrence_count(const std::string& word)
     {
         size_t count = 0;
-        MDB_val k{word.length(), const_cast<char*>(word.c_str())};
-        MDB_val v{0, nullptr};
-
+        lmdbpp::KeyVal<char, WordIdx> kv{{word}, {}};
         lmdbpp::Txn txn{_env, MDB_RDONLY, true};
         lmdbpp::Cursor c{txn, _dbi_word_idx, true};
         try
         {
-            c.get(&k, &v, MDB_SET);
-            c.get(&k, &v, MDB_GET_MULTIPLE);
+            c.get(kv, MDB_SET);
+            c.get(kv, MDB_GET_MULTIPLE);
             while (true)
             {
-                count += v.mv_size / sizeof(WordIdx);
-                c.get(&k, &v, MDB_NEXT_MULTIPLE);
+                count += kv.val.size() / sizeof(WordIdx);
+                c.get(kv, MDB_NEXT_MULTIPLE);
             }
         }
         catch (lmdbpp::Error& e)
@@ -159,15 +149,35 @@ public:
         return count;
     }
 
+    //TODO: make this something iterable that doesn't load all words into memory
+    std::vector<std::string> word_list()
+    {
+        std::vector<std::string> list;
+        lmdbpp::Txn txn{_env, MDB_RDONLY, true};
+        lmdbpp::Cursor c{txn, _dbi_word_idx, true};
+        lmdbpp::KeyVal<char,void> kv;
+
+        try
+        {
+            c.get(kv, MDB_FIRST);
+            while (true)
+            {
+                list.push_back(kv.key.as_str());
+                c.get(kv, MDB_LAST_DUP);
+                c.get(kv, MDB_NEXT);
+            }
+        }
+        catch (lmdbpp::Error& e)
+        {}
+        return list;
+    }
+
     std::string document_info(uint32_t hash)
     {
-        MDB_txn* txn;
-        MDB_val k{sizeof(hash), &hash}, v;
-        auto ret = mdb_txn_begin(_env, nullptr, MDB_RDONLY, &txn);
-        mdb_get(txn, _dbi_document_info, &k, &v);
-        std::string name{(char*)v.mv_data, v.mv_size};
-        mdb_txn_commit(txn);
-        return name;
+        lmdbpp::Txn txn{_env, MDB_RDONLY, true};
+        lmdbpp::KeyVal<decltype(hash), char> kv{{&hash, sizeof(hash)},{}};
+        txn.get(_dbi_document_info, kv);
+        return kv.val.as_str();
     }
 
 

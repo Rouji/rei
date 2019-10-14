@@ -29,7 +29,7 @@ int main(int argc, char **argv)
         else if (verb == "print")
         {
             auto view = lft.view_document(name);
-            std::cout<<std::string_view{view.ptr(), view.size()}<<std::endl;
+            std::cout<<std::string_view{view.ptr(), view.size()} <<std::endl;
         }
     }
     else if (noun == "word")
@@ -53,6 +53,13 @@ int main(int argc, char **argv)
         {
             std::string& word{*(++arg)};
             std::cout << lft.word_occurrence_count(word) << std::endl;
+        }
+        else if (verb == "list")
+        {
+            for (const auto& w : lft.word_list())
+            {
+                std::cout<<w<<"\n";
+            }
         }
     }
     /*

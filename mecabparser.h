@@ -10,6 +10,7 @@ public:
     struct Node
     {
         uint32_t location;   // offset in bytes inside the document
+        std::string feature; // original feature string
         std::string word;    // word as encountered in document
         std::string base;    // base form of word
         std::string reading; // reading in kana
@@ -93,6 +94,7 @@ private:
     {
         int len = 0;
         int i = 0;
+        out.feature = std::string{n->feature};
         for (auto p = n->feature;; ++p)
         {
             if (*p == ',' || *p == '\0')

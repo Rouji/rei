@@ -62,6 +62,7 @@ int main(int argc, char **argv)
             }
         }
     }
+    lft.test();
     /*
      * //TODO:
      * list documents

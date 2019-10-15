@@ -172,6 +172,15 @@ public:
         return list;
     }
 
+    void test()
+    {
+        lmdbpp::SimpleKVIterator<char,void> kvit{_env, _dbi_word_idx};
+        for (auto& it : kvit)
+        {
+            std::cout<<it.key.as_str()<<std::endl;
+        }
+    }
+
     std::string document_info(uint32_t hash)
     {
         lmdbpp::Txn txn{_env, MDB_RDONLY, true};

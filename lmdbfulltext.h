@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <vector>
 #include "lmdbpp.h"
+#include "lmdbpp_iterators.h"
 #include "mecabparser.h"
 #include "mmap.h"
 

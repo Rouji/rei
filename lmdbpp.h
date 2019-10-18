@@ -152,6 +152,7 @@ public:
     }
 
     void get(MDB_val* key, MDB_val* val, MDB_cursor_op op) { check(mdb_cursor_get(_cursor, key, val, op)); }
+    void get(MDB_val* key, MDB_cursor_op op) { get(key, nullptr, op); }
 
     template <typename TKey, typename TVal>
     void get(KeyVal<TKey, TVal>& kv, MDB_cursor_op op)
@@ -225,6 +226,7 @@ public:
     void abort() { mdb_txn_abort(_txn); }
 
     void get(MDB_dbi dbi, MDB_val* key, MDB_val* val) { check(mdb_get(_txn, dbi, key, val)); }
+    void get(MDB_dbi dbi, MDB_val* key) { get(dbi, key, nullptr); }
 
     template <typename TKey, typename TVal>
     void get(MDB_dbi dbi, KeyVal<TKey, TVal>& kv)

@@ -168,11 +168,11 @@ protected:
     {
         try
         {
-            if (this->_val.data() == nullptr) { _c.get(this->_val, nullptr, MDB_FIRST); }
+            if (this->_val.data() == nullptr) { _c.get(this->_val, _unused_val, MDB_FIRST); }
             else
             {
-                if (_is_dup) _c.get(this->_val, nullptr, MDB_LAST_DUP);
-                _c.get(this->_val, nullptr, MDB_NEXT);
+                if (_is_dup) _c.get(this->_val, _unused_val, MDB_LAST_DUP);
+                _c.get(this->_val, _unused_val, MDB_NEXT);
             }
         }
         catch (Error& e)
@@ -182,6 +182,7 @@ protected:
     }
     Txn _txn;
     Cursor _c;
+    Val<> _unused_val{};
     bool _is_dup = false;
 };
 

@@ -1,30 +1,29 @@
 #ifndef __lmdbfulltext_h
 #define __lmdbfulltext_h
 
-#include "mmap.h"
-#include "mecabparser.h"
-#include "lmdbpp.h"
 #include <cstdint>
 #include <cstring>
-#include <unordered_map>
 #include <memory>
 #include <string>
-#include <vector>
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
+#include "lmdbpp.h"
+#include "mecabparser.h"
+#include "mmap.h"
 
 class LmdbFullText
 {
 public:
-    union WordIdx
-    {
+    union WordIdx {
         uint64_t n;
-        uint32_t parts[2]; //{doc idx, word location}
+        uint32_t parts[2];  //{doc idx, word location}
     };
 
     LmdbFullText(std::string& db_path)
     {
         _env.set_maxdbs(3);
-        _env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 1024UL); //1tib
+        _env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 1024UL);  // 1tib
         _env.open(db_path);
 
         lmdbpp::Txn txn(_env, 0, true);
@@ -33,19 +32,15 @@ public:
         _dbi_word_idx = txn.open_dbi("word_idx", MDB_CREATE | MDB_DUPFIXED | MDB_DUPSORT);
     }
 
-    ~LmdbFullText()
-    {}
+    ~LmdbFullText() {}
 
     bool add_document(const std::string& name, const void* ptr, std::size_t size)
     {
         auto name_hash = strhash(name);
 
-        //write document info and content
+        // write document info and content
         {
-            lmdbpp::KeyVal<decltype(name_hash),char> kv{
-                {&name_hash, sizeof(name_hash)},
-                {name}
-            };
+            lmdbpp::KeyVal<decltype(name_hash), char> kv{{&name_hash, sizeof(name_hash)}, {name}};
 
             lmdbpp::Txn txn{_env, 0, true};
             try
@@ -56,7 +51,7 @@ public:
             {
                 if (e.code == MDB_KEYEXIST)
                 {
-                    std::cout<<"document "<<name<<" already exists"<<std::endl; //TODO
+                    std::cout << "document " << name << " already exists" << std::endl;  // TODO
                     return false;
                 }
                 else
@@ -67,7 +62,6 @@ public:
 
             txn.put(_dbi_document_content, kv.key, lmdbpp::Val<void>{ptr, size});
         }
-
 
         MecabParser parser{(const char*)ptr, size};
 
@@ -80,12 +74,8 @@ public:
             auto it = word_locations.find(n.base);
             if (it == word_locations.end())
             {
-                std::tie(it, std::ignore) = word_locations.insert(
-                                                std::pair<std::string, std::vector<WordIdx>>(
-                                                    n.base,
-                                                    std::vector<WordIdx> {}
-                                                )
-                                            );
+                std::tie(it, std::ignore) =
+                    word_locations.insert(std::pair<std::string, std::vector<WordIdx>>(n.base, std::vector<WordIdx>{}));
             }
             idx.parts[0] = name_hash;
             idx.parts[1] = n.location;
@@ -143,52 +133,21 @@ public:
         }
         catch (lmdbpp::Error& e)
         {
-            if (e.code != MDB_NOTFOUND)
-                throw;
+            if (e.code != MDB_NOTFOUND) throw;
         }
         return count;
     }
 
-    //TODO: make this something iterable that doesn't load all words into memory
-    std::vector<std::string> word_list()
-    {
-        std::vector<std::string> list;
-        lmdbpp::Txn txn{_env, MDB_RDONLY, true};
-        lmdbpp::Cursor c{txn, _dbi_word_idx, true};
-        lmdbpp::KeyVal<char,void> kv;
-
-        try
-        {
-            c.get(kv, MDB_FIRST);
-            while (true)
-            {
-                list.push_back(kv.key.as_str());
-                c.get(kv, MDB_LAST_DUP);
-                c.get(kv, MDB_NEXT);
-            }
-        }
-        catch (lmdbpp::Error& e)
-        {}
-        return list;
-    }
-
-    void test()
-    {
-        lmdbpp::SimpleKVIterator<char,void> kvit{_env, _dbi_word_idx};
-        for (auto& it : kvit)
-        {
-            std::cout<<it.key.as_str()<<std::endl;
-        }
-    }
+    // TODO: make this something iterable that doesn't load all words into memory
+    auto word_list() { return lmdbpp::SimpleKeyIterator<char>{_env, _dbi_word_idx, true}; }
 
     std::string document_info(uint32_t hash)
     {
         lmdbpp::Txn txn{_env, MDB_RDONLY, true};
-        lmdbpp::KeyVal<decltype(hash), char> kv{{&hash, sizeof(hash)},{}};
+        lmdbpp::KeyVal<decltype(hash), char> kv{{&hash, sizeof(hash)}, {}};
         txn.get(_dbi_document_info, kv);
         return kv.val.as_str();
     }
-
 
 private:
     uint32_t strhash(const std::string& str) const

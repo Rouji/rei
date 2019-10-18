@@ -1,13 +1,13 @@
-#include "lmdbfulltext.h"
 #include <string>
 #include <string_view>
+#include "lmdbfulltext.h"
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
-    std::vector<std::string> args{argv, argv+argc};
+    std::vector<std::string> args{argv, argv + argc};
     if (args.size() < 4)
     {
-        std::cerr<<"usage: "<<args[0]<<" <db> <noun> <verb> [options]"<<std::endl;
+        std::cerr << "usage: " << args[0] << " <db> <noun> <verb> [options]" << std::endl;
         return 1;
     }
 
@@ -29,7 +29,7 @@ int main(int argc, char **argv)
         else if (verb == "print")
         {
             auto view = lft.view_document(name);
-            std::cout<<std::string_view{view.ptr(), view.size()} <<std::endl;
+            std::cout << std::string_view{view.ptr(), view.size()} << std::endl;
         }
     }
     else if (noun == "word")
@@ -44,10 +44,7 @@ int main(int argc, char **argv)
                 std::cout << w->parts[0] << " | " << w->parts[1] << '\n';
             }
             */
-            for (const auto& i : it)
-            {
-                std::cout << i.n << '\n';
-            }
+            for (const auto& i : it) { std::cout << i.n << '\n'; }
         }
         else if (verb == "count")
         {
@@ -56,13 +53,9 @@ int main(int argc, char **argv)
         }
         else if (verb == "list")
         {
-            for (const auto& w : lft.word_list())
-            {
-                std::cout<<w<<"\n";
-            }
+            for (auto& w : lft.word_list()) { std::cout << w.as_str() << "\n"; }
         }
     }
-    lft.test();
     /*
      * //TODO:
      * list documents

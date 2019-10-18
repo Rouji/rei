@@ -2,13 +2,12 @@
 #define __lmdbpp
 
 #include <lmdb.h>
-#include <utility>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace lmdbpp
 {
-
 class Error : public std::runtime_error
 {
 public:
@@ -18,8 +17,7 @@ public:
 
 void check(int return_code)
 {
-    if (return_code)
-        throw Error{mdb_strerror(return_code), return_code};
+    if (return_code) throw Error{mdb_strerror(return_code), return_code};
 }
 
 template <typename T = void>
@@ -32,37 +30,20 @@ public:
     Val(const std::string& str) : _val{str.length(), (void*)str.c_str()} {}
     Val(const Val& o) = default;
 
-    const T* data()
-    {
-        return const_cast<T*>((char*)_val.mv_data);
-    }
-    void data(T* d)
-    {
-        _val.mv_data = d;
-    }
-    size_t size()
-    {
-        return _val.mv_size;
-    }
-    void size(size_t s)
-    {
-        _val.mv_size = s;
-    }
+    const T* data() { return const_cast<T*>((char*)_val.mv_data); }
+    void data(T* d) { _val.mv_data = d; }
+    size_t size() { return _val.mv_size; }
+    void size(size_t s) { _val.mv_size = s; }
 
-    std::string as_str() const
-    {
-        return std::string{const_cast<char*>((char*)_val.mv_data), _val.mv_size};
-    }
+    std::string as_str() const { return std::string{const_cast<char*>((char*)_val.mv_data), _val.mv_size}; }
 
-    operator MDB_val*()
-    {
-        return &_val;
-    }
+    operator MDB_val*() { return &_val; }
 
 private:
     MDB_val _val{0, 0};
 };
 
+// wrapper for MDB_val[2], use for MDB_MULTIPLE
 template <typename T>
 class MultiVal
 {
@@ -74,20 +55,14 @@ public:
     {
     }
 
-    MultiVal(const std::vector<T>& vec)
-        : _val{{sizeof(T), const_cast<T*>(vec.data())}, {vec.size(), 0}}
-    {
-    }
+    MultiVal(const std::vector<T>& vec) : _val{{sizeof(T), const_cast<T*>(vec.data())}, {vec.size(), 0}} {}
 
     MultiVal(const MultiVal& o) = default;
 
-    operator MDB_val*()
-    {
-        return _val;
-    }
+    operator MDB_val*() { return _val; }
 
 private:
-    MDB_val _val[2] {{}, {}};
+    MDB_val _val[2]{{}, {}};
 };
 
 template <typename TKey = void, typename TVal = void>
@@ -100,32 +75,17 @@ struct KeyVal
 class Env
 {
 public:
-    Env()
-    {
-        mdb_env_create(&_env);
-    }
-    ~Env()
-    {
-        mdb_env_close(_env);
-    }
+    Env() { mdb_env_create(&_env); }
+    ~Env() { mdb_env_close(_env); }
 
-    void set_maxdbs(int n)
-    {
-        check(mdb_env_set_maxdbs(_env, n));
-    }
-    void set_mapsize(size_t size)
-    {
-        check(mdb_env_set_mapsize(_env, size));
-    }
+    void set_maxdbs(int n) { check(mdb_env_set_maxdbs(_env, n)); }
+    void set_mapsize(size_t size) { check(mdb_env_set_mapsize(_env, size)); }
     void open(const std::string& path, unsigned int flags = 0, mdb_mode_t mode = 0644)
     {
         check(mdb_env_open(_env, path.c_str(), flags, mode));
     }
 
-    operator MDB_env*() const
-    {
-        return _env;
-    }
+    operator MDB_env*() const { return _env; }
 
     MDB_env* _env = nullptr;
 };
@@ -142,10 +102,8 @@ public:
 
     ~Dbi()
     {
-        if (_dbi != -1)
-            mdb_dbi_close(_env, _dbi);
+        if (_dbi != -1) mdb_dbi_close(_env, _dbi);
     }
-
 
     Dbi& operator=(Dbi&& o)
     {
@@ -160,10 +118,7 @@ public:
         std::swap(_env, o._env);
     }
 
-    operator MDB_dbi() const
-    {
-        return _dbi;
-    }
+    operator MDB_dbi() const { return _dbi; }
 
     MDB_dbi _dbi = -1;
     MDB_env* _env = nullptr;
@@ -181,34 +136,24 @@ public:
 
     ~Cursor()
     {
-        if (_autoclose && _cursor != nullptr)
-            close();
+        if (_autoclose && _cursor != nullptr) close();
     }
 
     Cursor(const Cursor& o) = default;
 
-    void close()
-    {
-        mdb_cursor_close(_cursor);
-    }
+    void close() { mdb_cursor_close(_cursor); }
 
-    void put(MDB_val* key, MDB_val* val, unsigned int flags = 0)
-    {
-        check(mdb_cursor_put(_cursor, key, val, flags));
-    }
+    void put(MDB_val* key, MDB_val* val, unsigned int flags = 0) { check(mdb_cursor_put(_cursor, key, val, flags)); }
 
-    template<typename TKey, typename TVal>
+    template <typename TKey, typename TVal>
     void put(const KeyVal<TKey, TVal>& kv, MDB_cursor_op op)
     {
         put(kv.key, kv.val, op);
     }
 
-    void get(MDB_val* key, MDB_val* val, MDB_cursor_op op)
-    {
-        check(mdb_cursor_get(_cursor, key, val, op));
-    }
+    void get(MDB_val* key, MDB_val* val, MDB_cursor_op op) { check(mdb_cursor_get(_cursor, key, val, op)); }
 
-    template<typename TKey, typename TVal>
+    template <typename TKey, typename TVal>
     void get(KeyVal<TKey, TVal>& kv, MDB_cursor_op op)
     {
         get(kv.key, kv.val, op);
@@ -229,10 +174,7 @@ public:
         std::swap(_cursor, o._cursor);
     }
 
-    operator MDB_cursor*() const
-    {
-        return _cursor;
-    }
+    operator MDB_cursor*() const { return _cursor; }
 
     MDB_txn* _txn = nullptr;
     MDB_dbi _dbi = -1;
@@ -254,8 +196,7 @@ public:
 
     ~Txn()
     {
-        if (_autocommit && _txn != nullptr)
-            commit();
+        if (_autocommit && _txn != nullptr) commit();
     }
 
     Txn& operator=(Txn&& o)
@@ -280,22 +221,12 @@ public:
         std::swap(_autocommit, o._autocommit);
     }
 
+    void commit() { check(mdb_txn_commit(_txn)); }
+    void abort() { mdb_txn_abort(_txn); }
 
-    void commit()
-    {
-        check(mdb_txn_commit(_txn));
-    }
-    void abort()
-    {
-        mdb_txn_abort(_txn);
-    }
+    void get(MDB_dbi dbi, MDB_val* key, MDB_val* val) { check(mdb_get(_txn, dbi, key, val)); }
 
-    void get(MDB_dbi dbi, MDB_val* key, MDB_val* val)
-    {
-        check(mdb_get(_txn, dbi, key, val));
-    }
-
-    template<typename TKey, typename TVal>
+    template <typename TKey, typename TVal>
     void get(MDB_dbi dbi, KeyVal<TKey, TVal>& kv)
     {
         get(dbi, kv.key, kv.val);
@@ -306,34 +237,19 @@ public:
         check(mdb_put(_txn, dbi, key, val, flags));
     }
 
-    template<typename TKey, typename TVal>
+    template <typename TKey, typename TVal>
     void put(MDB_dbi dbi, KeyVal<TKey, TVal>& kv, unsigned int flags = 0)
     {
         put(dbi, kv.key, kv.val, flags);
     }
 
-    Dbi open_dbi(const char* name, unsigned int flags = 0)
-    {
-        return Dbi(_env, _txn, name, flags);
-    }
-    Dbi open_dbi(const std::string& name, unsigned int flags = 0)
-    {
-        return open_dbi(name.c_str(), flags);
-    }
-    Dbi open_dbi(unsigned int flags = 0)
-    {
-        return open_dbi(nullptr, flags);
-    }
+    Dbi open_dbi(const char* name, unsigned int flags = 0) { return Dbi(_env, _txn, name, flags); }
+    Dbi open_dbi(const std::string& name, unsigned int flags = 0) { return open_dbi(name.c_str(), flags); }
+    Dbi open_dbi(unsigned int flags = 0) { return open_dbi(nullptr, flags); }
 
-    Cursor open_cursor(MDB_dbi dbi, bool autoclose = false)
-    {
-        return Cursor(_txn, dbi, autoclose);
-    }
+    Cursor open_cursor(MDB_dbi dbi, bool autoclose = false) { return Cursor(_txn, dbi, autoclose); }
 
-    operator MDB_txn*() const
-    {
-        return _txn;
-    }
+    operator MDB_txn*() const { return _txn; }
 
     MDB_txn* _txn = nullptr;
     MDB_env* _env = nullptr;
@@ -342,32 +258,24 @@ private:
     bool _autocommit = false;
 };
 
-//read-only view of a single value for a given key
+// read-only view of a single value for a given key
 template <typename T>
 class ValueView
 {
 public:
-    ValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key) : _txn{env, MDB_RDONLY, true}
-    {
-        _txn.get(dbi, key, &_val);
-    }
+    ValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key) : _txn{env, MDB_RDONLY, true} { _txn.get(dbi, key, &_val); }
 
-    const T* ptr()
-    {
-        return (T*)_val.mv_data;
-    }
+    const T* ptr() { return (T*)_val.mv_data; }
 
-    size_t size()
-    {
-        return _val.mv_size;
-    }
+    size_t size() { return _val.mv_size; }
 
 private:
     MDB_val _val{0, 0};
     Txn _txn;
 };
 
-//for-each compatible iterate-able thing for MDB_MULTIPLE + MDB_DUPFIXED values for a given key
+// for-each compatible iterate-able thing for MDB_MULTIPLE + MDB_DUPFIXED values
+// for a given key
 template <typename T>
 class MultipleValueView
 {
@@ -375,31 +283,17 @@ public:
     class Iterator
     {
     public:
-        bool operator==(const Iterator& o)
-        {
-            return _end && o._end;
-        }
-        bool operator!=(const Iterator& o)
-        {
-            return !(*this == o);
-        }
+        bool operator==(const Iterator& o) { return _end && o._end; }
+        bool operator!=(const Iterator& o) { return !(*this == o); }
 
         Iterator& operator++()
         {
-            if (!_multi->next(&_item))
-                _end = true;
+            if (!_multi->next(&_item)) _end = true;
             return *this;
         }
 
-        const T& operator*()
-        {
-            return *_item;
-        }
-
-        const T* operator->()
-        {
-            return _item;
-        }
+        const T& operator*() { return *_item; }
+        const T* operator->() { return _item; }
 
     private:
         Iterator(MultipleValueView<T>* multi) : _multi(multi) {}
@@ -409,13 +303,12 @@ public:
         friend class MultipleValueView;
     };
 
-    MultipleValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key) : _k(*key), _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true} {}
-
-
-    Iterator begin()
+    MultipleValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key)
+        : _k(*key), _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true}
     {
-        return ++Iterator{this};
     }
+
+    Iterator begin() { return ++Iterator{this}; }
 
     Iterator end()
     {
@@ -462,35 +355,25 @@ private:
     MDB_val _v{0, nullptr};
 };
 
-struct Sentinel {};
+struct Sentinel
+{
+};
 const Sentinel _sentinel{};
 
 template <typename TItem>
 class IteratorBase
 {
 public:
-    bool operator!=(const Sentinel& o)
-    {
-        return !_end;
-    }
-    const TItem& operator*()
-    {
-        return _val;
-    }
-    const TItem* operator->()
-    {
-        return &_val;
-    }
+    bool operator!=(const Sentinel& o) { return !_end; }
+    const TItem& operator*() { return _val; }
+    const TItem* operator->() { return &_val; }
     IteratorBase& operator++()
     {
         this->next();
         return *this;
     }
     virtual IteratorBase& begin() = 0;
-    const Sentinel& end()
-    {
-        return _sentinel;
-    }
+    const Sentinel& end() { return _sentinel; }
 
 protected:
     virtual void next() = 0;
@@ -498,39 +381,26 @@ protected:
     bool _end = false;
 };
 
-
 template <typename TIter>
 class IteratorContainer
 {
 public:
     IteratorContainer(TIter& it) : _it(it) {}
-    TIter& begin()
-    {
-        return _it;
-    }
-    const Sentinel& end()
-    {
-        return _sentinel;
-    }
+    TIter& begin() { return _it; }
+    const Sentinel& end() { return _sentinel; }
+
 private:
     TIter& _it;
 };
 
-//iterates over all key/val pairs in a dbi
+// iterates over all key/val pairs in a dbi
 template <typename TKey, typename TVal>
 class SimpleKVIterator : public IteratorBase<KeyVal<TKey, TVal>>
 {
 public:
-    SimpleKVIterator(MDB_env* env, MDB_dbi dbi) : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true}
-    {
-    }
-    SimpleKVIterator(SimpleKVIterator& o) : _txn{o._txn}, _c{o._c}
-    {
-    }
-    SimpleKVIterator& begin()
-    {
-        return *this;
-    }
+    SimpleKVIterator(MDB_env* env, MDB_dbi dbi) : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true} {}
+    SimpleKVIterator(SimpleKVIterator& o) : _txn{o._txn}, _c{o._c} {}
+    SimpleKVIterator& begin() { return *this; }
 
 protected:
     void next() override
@@ -549,6 +419,40 @@ protected:
     Cursor _c;
 };
 
-}
+template <typename TKey>
+class SimpleKeyIterator : public IteratorBase<Val<TKey>>
+{
+public:
+    // TODO: query mdb to figure out if this is dup?
+    SimpleKeyIterator(MDB_env* env, MDB_dbi dbi, bool is_dup = false)
+        : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true}, _is_dup(is_dup)
+    {
+    }
+    SimpleKeyIterator(SimpleKeyIterator& o) : _txn{o._txn}, _c{o._c} { std::swap(_is_dup, o._is_dup); }
+    SimpleKeyIterator& begin() { return *this; }
+
+protected:
+    void next() override
+    {
+        try
+        {
+            if (this->_val.data() == nullptr) { _c.get(this->_val, nullptr, MDB_FIRST); }
+            else
+            {
+                if (_is_dup) _c.get(this->_val, nullptr, MDB_LAST_DUP);
+                _c.get(this->_val, nullptr, MDB_NEXT);
+            }
+        }
+        catch (Error& e)
+        {
+            this->_end = true;
+        }
+    }
+    Txn _txn;
+    Cursor _c;
+    bool _is_dup = false;
+};
+
+}  // namespace lmdbpp
 
 #endif

@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <vector>
 #include "lmdbpp.h"
-#include "lmdbpp_iterators.h"
+#include "lmdbpp_containers.h"
 #include "mecabparser.h"
 #include "mmap.h"
 
@@ -27,7 +27,7 @@ public:
         _env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 1024UL);  // 1tib
         _env.open(db_path);
 
-        lmdbpp::Txn txn(_env, 0, true);
+        lmdbpp::Txn txn{_env, 0, true};
         _dbi_document_content = txn.open_dbi("document_content", MDB_CREATE);
         _dbi_document_info = txn.open_dbi("document_info", MDB_CREATE);
         _dbi_word_idx = txn.open_dbi("word_idx", MDB_CREATE | MDB_DUPFIXED | MDB_DUPSORT);
@@ -140,7 +140,7 @@ public:
     }
 
     // TODO: make this something iterable that doesn't load all words into memory
-    auto word_list() { return lmdbpp::SimpleKeyIterator<char>{_env, _dbi_word_idx, true}; }
+    auto word_list() { return lmdbpp::KeyIterator<char>{_env, _dbi_word_idx, true}; }
 
     std::string document_info(uint32_t hash)
     {

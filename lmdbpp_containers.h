@@ -5,7 +5,6 @@
 
 namespace lmdbpp
 {
-
 // for-each compatible iterate-able thing for MDB_MULTIPLE + MDB_DUPFIXED values
 // for a given key
 template <typename T>
@@ -127,12 +126,12 @@ private:
 
 // iterates over all key/val pairs in a dbi
 template <typename TKey, typename TVal>
-class SimpleKVIterator : public IteratorBase<KeyVal<TKey, TVal>>
+class KeyValIterator : public IteratorBase<KeyVal<TKey, TVal>>
 {
 public:
-    SimpleKVIterator(MDB_env* env, MDB_dbi dbi) : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true} {}
-    SimpleKVIterator(SimpleKVIterator& o) : _txn{o._txn}, _c{o._c} {}
-    SimpleKVIterator& begin() { return *this; }
+    KeyValIterator(MDB_env* env, MDB_dbi dbi) : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true} {}
+    KeyValIterator(KeyValIterator& o) : _txn{o._txn}, _c{o._c} {}
+    KeyValIterator& begin() { return *this; }
 
 protected:
     void next() override
@@ -152,16 +151,16 @@ protected:
 };
 
 template <typename TKey>
-class SimpleKeyIterator : public IteratorBase<Val<TKey>>
+class KeyIterator : public IteratorBase<Val<TKey>>
 {
 public:
     // TODO: query mdb to figure out if this is dup?
-    SimpleKeyIterator(MDB_env* env, MDB_dbi dbi, bool is_dup = false)
+    KeyIterator(MDB_env* env, MDB_dbi dbi, bool is_dup = false)
         : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true}, _is_dup(is_dup)
     {
     }
-    SimpleKeyIterator(SimpleKeyIterator& o) : _txn{o._txn}, _c{o._c} { std::swap(_is_dup, o._is_dup); }
-    SimpleKeyIterator& begin() { return *this; }
+    KeyIterator(KeyIterator& o) : _txn{o._txn}, _c{o._c} { std::swap(_is_dup, o._is_dup); }
+    KeyIterator& begin() { return *this; }
 
 protected:
     void next() override
@@ -186,5 +185,55 @@ protected:
     bool _is_dup = false;
 };
 
-}
+template <typename TKey, typename TVal>
+class Map
+{
+public:
+    class Proxy
+    {
+    public:
+        void operator=(Val<TVal> val)
+        {
+            _kv.val = val;
+            _txn.put(_dbi, _kv);
+        }
+
+        operator TVal() const
+        {
+            return _kv.val;
+        }
+
+    private:
+        friend class Map;
+        Proxy(Txn& txn, MDB_dbi dbi, const Val<TKey>& key) : _txn(txn), _dbi(dbi), _kv{key, {}}
+        {
+            try
+            {
+                _txn.get(dbi, _kv);
+            }
+            catch (Error& e)
+            {
+                if (e.code == MDB_NOTFOUND)
+                {
+                    _txn.put(dbi, _kv);
+                }
+            }
+        }
+
+        Txn& _txn;
+        KeyVal<TKey, TVal> _kv;
+        MDB_dbi _dbi = -1;
+    };
+
+    Map(MDB_env* env, MDB_dbi dbi, unsigned int flags = 0) : _dbi(dbi), _txn{env, flags, true} {}
+
+    Proxy operator[](const Val<TKey>& key) { return Proxy{_txn, _dbi, key}; }
+    Proxy operator[](const TKey& key) { return Proxy{_txn, _dbi, key}; }
+
+private:
+    MDB_dbi _dbi;
+    Txn _txn;
+};
+
+}  // namespace lmdbpp
 #endif

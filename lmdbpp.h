@@ -30,7 +30,7 @@ public:
     Val(const std::string& str) : _val{str.length(), (void*)str.c_str()} {}
     Val(const Val& o) = default;
 
-    const T* data() { return const_cast<T*>((char*)_val.mv_data); }
+    const T* data() { return const_cast<T*>((T*)_val.mv_data); }
     void data(T* d) { _val.mv_data = d; }
     size_t size() { return _val.mv_size; }
     void size(size_t s) { _val.mv_size = s; }

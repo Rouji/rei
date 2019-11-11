@@ -151,6 +151,11 @@ public:
         return KeyIteratable<char>{_env, _dbi_word_idx};
     }
 
+    auto document_list()
+    {
+        return KeyValIteratable<uint32_t, char>{_env, _dbi_document_info};
+    }
+
     void test()
     {
         KeyValIteratable<WordIdx, char> kv{_env, _dbi_document_info};
@@ -176,7 +181,7 @@ public:
         Txn txn{_env, MDB_RDONLY, true};
         KeyVal<decltype(hash), char> kv{{&hash, sizeof(hash)}, {}};
         txn.get(_dbi_document_info, kv);
-        return kv.val.as_str();
+        return kv.val.to_str();
     }
 
 private:

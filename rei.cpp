@@ -26,6 +26,13 @@ int main(int argc, char** argv)
             std::string& input_file{*(++arg)};
             lft.add_document(name, input_file);
         }
+        else if (verb == "list")
+        {
+            for (auto& d : lft.document_list())
+            {
+                std::cout << d.key.to_str() << " " << d.val.to_str() << '\n';
+            }
+        }
         else if (verb == "print")
         {
             auto view = lft.view_document(name);
@@ -38,7 +45,10 @@ int main(int argc, char** argv)
         {
             std::string& word{*(++arg)};
             auto it = lft.word_indices(word);
-            for (const auto& i : it) { std::cout << i.n << '\n'; }
+            for (const auto& i : it)
+            {
+                std::cout << i.n << '\n';
+            }
         }
         else if (verb == "count")
         {
@@ -47,13 +57,16 @@ int main(int argc, char** argv)
         }
         else if (verb == "list")
         {
-            for (auto& w : lft.word_list()) { std::cout << w.as_str() << "\n"; }
+            for (auto& w : lft.word_list())
+            {
+                std::cout << w.to_str() << '\n';
+            }
         }
     }
-    lft.test();
+    // lft.test();
     /*
      * //TODO:
-     * list documents
+     * std::string_view wherever possible to reduce copies
      * tokenize: print whatever the tokeniser (mecab) makes of a string
      * idx context: print text around a wordidx
      * examples: iterate through all occurences of a word and print their surroundings

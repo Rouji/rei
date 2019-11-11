@@ -14,20 +14,36 @@ public:
     class Iterator
     {
     public:
-        bool operator==(const Iterator& o) { return _end && o._end; }
-        bool operator!=(const Iterator& o) { return !(*this == o); }
+        bool operator==(const Iterator& o)
+        {
+            return _end && o._end;
+        }
+        bool operator!=(const Iterator& o)
+        {
+            return !(*this == o);
+        }
 
         Iterator& operator++()
         {
-            if (!_multi->next(&_item)) _end = true;
+            if (!_multi->next(&_item))
+                _end = true;
             return *this;
         }
 
-        const T& operator*() { return *_item; }
-        const T* operator->() { return _item; }
+        const T& operator*()
+        {
+            return *_item;
+        }
+        const T* operator->()
+        {
+            return _item;
+        }
 
     private:
-        Iterator(MultipleValueView<T>* multi) : _multi(multi) {}
+        Iterator(MultipleValueView<T>* multi)
+            : _multi(multi)
+        {
+        }
         MultipleValueView* _multi;
         bool _end = false;
         const T* _item = 0;
@@ -35,11 +51,16 @@ public:
     };
 
     MultipleValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key)
-        : _k(*key), _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true}
+        : _k(*key)
+        , _txn{env, MDB_RDONLY, true}
+        , _c{_txn, dbi, true}
     {
     }
 
-    Iterator begin() { return ++Iterator{this}; }
+    Iterator begin()
+    {
+        return ++Iterator{this};
+    }
 
     Iterator end()
     {
@@ -52,7 +73,6 @@ public:
     {
         if (_v.mv_data == nullptr || _v.mv_size == 0)
         {
-            int r;
             try
             {
                 if (_v.mv_data == nullptr)
@@ -86,105 +106,181 @@ private:
     MDB_val _v{0, nullptr};
 };
 
-struct Sentinel
+struct IteratorSentinel
 {
 };
-const Sentinel _sentinel{};
+const IteratorSentinel _sentinel{};
 
-template <typename TItem>
+template <typename TData>
 class IteratorBase
 {
 public:
-    bool operator!=(const Sentinel& o) { return !_end; }
-    const TItem& operator*() { return _val; }
-    const TItem* operator->() { return &_val; }
+    IteratorBase(IteratorBase& o)
+        : _data(o._data)
+        , _end(o._end)
+    {
+    }
+    bool operator!=(const IteratorSentinel& o)
+    {
+        return !_end;
+    }
+    TData& operator*()
+    {
+        return _data;
+    }
+    TData* operator->()
+    {
+        return &_data;
+    }
     IteratorBase& operator++()
     {
         this->next();
         return *this;
     }
-    virtual IteratorBase& begin() = 0;
-    const Sentinel& end() { return _sentinel; }
 
 protected:
+    IteratorBase()
+    {
+    }
     virtual void next() = 0;
-    TItem _val;
+
+    TData _data;
     bool _end = false;
 };
 
-template <typename TIter>
-class IteratorContainer
+class IteratableBase
 {
 public:
-    IteratorContainer(TIter& it) : _it(it) {}
-    TIter& begin() { return _it; }
-    const Sentinel& end() { return _sentinel; }
-
-private:
-    TIter& _it;
+    const IteratorSentinel& end()
+    {
+        return _sentinel;
+    }
 };
 
 // iterates over all key/val pairs in a dbi
 template <typename TKey, typename TVal>
-class KeyValIterator : public IteratorBase<KeyVal<TKey, TVal>>
+class KeyValIteratable : public IteratableBase
 {
 public:
-    KeyValIterator(MDB_env* env, MDB_dbi dbi) : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true} {}
-    KeyValIterator(KeyValIterator& o) : _txn{o._txn}, _c{o._c} {}
-    KeyValIterator& begin() { return *this; }
-
-protected:
-    void next() override
+    class Iterator : public IteratorBase<KeyVal<TKey, TVal>>
     {
-        try
+    protected:
+        void next() override
         {
-            _c.get(this->_val, this->_val.key.data() == nullptr ? MDB_FIRST : MDB_NEXT);
+            try
+            {
+                _c.get(this->_data, this->_data.key.data() == nullptr ? MDB_FIRST : MDB_NEXT);
+            }
+            catch (Error& e)
+            {
+                this->_end = true;
+            }
         }
-        catch (Error e)
+
+    private:
+        friend class KeyValIteratable;
+        Iterator(Txn& txn, MDB_dbi dbi)
+            : _c{txn, dbi, true}
         {
-            this->_end = true;
+            next();
         }
+        Iterator(Iterator& o)
+            : IteratorBase<KeyVal<TKey, TVal>>(o)
+            , _c{o._c}
+        {
+        }
+        Cursor _c;
+    };
+
+    KeyValIteratable(MDB_env* env, MDB_dbi dbi)
+        : _txn{env, MDB_RDONLY}
+        , _dbi(dbi)
+    {
+    }
+    KeyValIteratable(KeyValIteratable& o)
+        : _txn{o._txn}
+    {
     }
 
+    Iterator begin()
+    {
+        return Iterator{_txn, _dbi};
+    }
+
+protected:
     Txn _txn;
-    Cursor _c;
+    MDB_dbi _dbi;
 };
 
 template <typename TKey>
-class KeyIterator : public IteratorBase<Val<TKey>>
+class KeyIteratable : public IteratableBase
 {
 public:
-    // TODO: query mdb to figure out if this is dup?
-    KeyIterator(MDB_env* env, MDB_dbi dbi, bool is_dup = false)
-        : _txn{env, MDB_RDONLY, true}, _c{_txn, dbi, true}, _is_dup(is_dup)
+    class Iterator : public IteratorBase<Val<TKey>>
     {
-    }
-    KeyIterator(KeyIterator& o) : _txn{o._txn}, _c{o._c} { std::swap(_is_dup, o._is_dup); }
-    KeyIterator& begin() { return *this; }
-
-protected:
-    void next() override
-    {
-        try
+    protected:
+        void next() override
         {
-            if (this->_val.data() == nullptr) { _c.get(this->_val, _unused_val, MDB_FIRST); }
-            else
+            try
             {
-                if (_is_dup) _c.get(this->_val, _unused_val, MDB_LAST_DUP);
-                _c.get(this->_val, _unused_val, MDB_NEXT);
+                if (this->_data.data() == nullptr)
+                {
+                    _c.get(this->_data, _unused_val, MDB_FIRST);
+                }
+                else
+                {
+                    if (_is_dup)
+                        _c.get(this->_data, _unused_val, MDB_LAST_DUP);
+                    _c.get(this->_data, _unused_val, MDB_NEXT);
+                }
+            }
+            catch (Error& e)
+            {
+                this->_end = true;
             }
         }
-        catch (Error& e)
+
+    private:
+        friend class KeyIteratable;
+        Iterator(Txn& txn, MDB_dbi dbi)
+            : _c{txn, dbi, true}
+            , _is_dup(Dbi::flags(txn, dbi) & MDB_DUPSORT)
         {
-            this->_end = true;
+            next();
         }
+        Iterator(Iterator& o)
+            : IteratorBase<Val<TKey>>(o)
+            , _is_dup(o._is_dup)
+            , _c{o._c}
+        {
+        }
+        Val<> _unused_val{};
+        Cursor _c;
+        bool _is_dup = false;
+    };
+
+    KeyIteratable(MDB_env* env, MDB_dbi dbi)
+        : _txn{env, MDB_RDONLY, true}
+        , _dbi(dbi)
+    {
     }
+    KeyIteratable(KeyIteratable& o)
+        : _txn{o._txn}
+        , _dbi(o._dbi)
+    {
+    }
+
+    Iterator begin()
+    {
+        return Iterator{_txn, _dbi};
+    }
+
+protected:
     Txn _txn;
-    Cursor _c;
-    Val<> _unused_val{};
-    bool _is_dup = false;
+    MDB_dbi _dbi;
 };
 
+/*
 template <typename TKey, typename TVal>
 class Map
 {
@@ -205,7 +301,10 @@ public:
 
     private:
         friend class Map;
-        Proxy(Txn& txn, MDB_dbi dbi, const Val<TKey>& key) : _txn(txn), _dbi(dbi), _kv{key, {}}
+        Proxy(Txn& txn, MDB_dbi dbi, const Val<TKey>& key)
+            : _txn(txn)
+            , _dbi(dbi)
+            , _kv{key, {}}
         {
             try
             {
@@ -225,15 +324,26 @@ public:
         MDB_dbi _dbi = -1;
     };
 
-    Map(MDB_env* env, MDB_dbi dbi, unsigned int flags = 0) : _dbi(dbi), _txn{env, flags, true} {}
+    Map(MDB_env* env, MDB_dbi dbi, unsigned int flags = 0)
+        : _dbi(dbi)
+        , _txn{env, flags, true}
+    {
+    }
 
-    Proxy operator[](const Val<TKey>& key) { return Proxy{_txn, _dbi, key}; }
-    Proxy operator[](const TKey& key) { return Proxy{_txn, _dbi, key}; }
+    Proxy operator[](const Val<TKey>& key)
+    {
+        return Proxy{_txn, _dbi, key};
+    }
+    Proxy operator[](const TKey& key)
+    {
+        return Proxy{_txn, _dbi, key};
+    }
 
 private:
     MDB_dbi _dbi;
     Txn _txn;
 };
+*/
 
 }  // namespace lmdbpp
 #endif

@@ -30,7 +30,7 @@ public:
     Val(const std::string& str) : _val{str.length(), (void*)str.c_str()} {}
     Val(const Val& o) = default;
 
-    const T* data() { return const_cast<T*>((T*)_val.mv_data); }
+    T* data() { return (T*)_val.mv_data; }
     void data(T* d) { _val.mv_data = d; }
     size_t size() { return _val.mv_size; }
     void size(size_t s) { _val.mv_size = s; }
@@ -120,6 +120,19 @@ public:
 
     operator MDB_dbi() const { return _dbi; }
 
+    static unsigned int flags(MDB_txn* txn, MDB_dbi dbi)
+    {
+        unsigned int f = 0;
+        check(mdb_dbi_flags(txn, dbi, &f));
+        return f;
+    }
+
+    unsigned int flags(MDB_txn* txn)
+    {
+        return flags(txn, _dbi);
+    }
+
+private:
     MDB_dbi _dbi = -1;
     MDB_env* _env = nullptr;
 };

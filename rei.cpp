@@ -38,12 +38,6 @@ int main(int argc, char** argv)
         {
             std::string& word{*(++arg)};
             auto it = lft.word_indices(word);
-            /*
-            for (const LmdbFullText::WordIdx * w; it.next(&w);)
-            {
-                std::cout << w->parts[0] << " | " << w->parts[1] << '\n';
-            }
-            */
             for (const auto& i : it) { std::cout << i.n << '\n'; }
         }
         else if (verb == "count")
@@ -56,6 +50,7 @@ int main(int argc, char** argv)
             for (auto& w : lft.word_list()) { std::cout << w.as_str() << "\n"; }
         }
     }
+    lft.test();
     /*
      * //TODO:
      * list documents

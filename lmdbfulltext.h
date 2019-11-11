@@ -13,6 +13,8 @@
 #include "mecabparser.h"
 #include "mmap.h"
 
+using namespace lmdbpp;
+
 class LmdbFullText
 {
 public:
@@ -27,13 +29,17 @@ public:
         _env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 1024UL);  // 1tib
         _env.open(db_path);
 
-        lmdbpp::Txn txn{_env, 0, true};
-        _dbi_document_content = txn.open_dbi("document_content", MDB_CREATE);
-        _dbi_document_info = txn.open_dbi("document_info", MDB_CREATE);
-        _dbi_word_idx = txn.open_dbi("word_idx", MDB_CREATE | MDB_DUPFIXED | MDB_DUPSORT);
+        {
+            Txn txn{_env, 0, true};
+            _dbi_document_content = txn.open_dbi("document_content", MDB_CREATE);
+            _dbi_document_info = txn.open_dbi("document_info", MDB_CREATE);
+            _dbi_word_idx = txn.open_dbi("word_idx", MDB_CREATE | MDB_DUPFIXED | MDB_DUPSORT);
+        }
     }
 
-    ~LmdbFullText() {}
+    ~LmdbFullText()
+    {
+    }
 
     bool add_document(const std::string& name, const void* ptr, std::size_t size)
     {
@@ -41,14 +47,14 @@ public:
 
         // write document info and content
         {
-            lmdbpp::KeyVal<decltype(name_hash), char> kv{{&name_hash, sizeof(name_hash)}, {name}};
+            KeyVal<decltype(name_hash), char> kv{{&name_hash, sizeof(name_hash)}, {name}};
 
-            lmdbpp::Txn txn{_env, 0, true};
+            Txn txn{_env, 0, true};
             try
             {
                 txn.put(_dbi_document_info, kv, MDB_NOOVERWRITE);
             }
-            catch (lmdbpp::Error& e)
+            catch (Error& e)
             {
                 if (e.code == MDB_KEYEXIST)
                 {
@@ -61,7 +67,7 @@ public:
                 }
             }
 
-            txn.put(_dbi_document_content, kv.key, lmdbpp::Val<void>{ptr, size});
+            txn.put(_dbi_document_content, kv.key, Val<void>{ptr, size});
         }
 
         MecabParser parser{(const char*)ptr, size};
@@ -84,14 +90,14 @@ public:
         }
 
         {
-            lmdbpp::Txn txn{_env, 0, true};
-            lmdbpp::Cursor c{txn, _dbi_word_idx, true};
-            lmdbpp::Val<char> k;
-            lmdbpp::MultiVal<WordIdx> v;
+            Txn txn{_env, 0, true};
+            Cursor c{txn, _dbi_word_idx, true};
+            Val<char> k;
+            MultiVal<WordIdx> v;
             for (const auto& wloc : word_locations)
             {
-                k = lmdbpp::Val<char>{wloc.first};
-                v = lmdbpp::MultiVal<WordIdx>{wloc.second};
+                k = Val<char>{wloc.first};
+                v = MultiVal<WordIdx>{wloc.second};
                 c.put(k, v, MDB_MULTIPLE);
             }
         }
@@ -105,23 +111,23 @@ public:
         return add_document(name, mmap.ptr(), mmap.size());
     }
 
-    lmdbpp::MultipleValueView<WordIdx> word_indices(const std::string& word)
+    MultipleValueView<WordIdx> word_indices(const std::string& word)
     {
-        return lmdbpp::MultipleValueView<WordIdx>{_env, _dbi_word_idx, lmdbpp::Val<char>{word}};
+        return MultipleValueView<WordIdx>{_env, _dbi_word_idx, Val<char>{word}};
     }
 
-    lmdbpp::ValueView<char> view_document(const std::string& name)
+    ValueView<char> view_document(const std::string& name)
     {
         auto hash = strhash(name.c_str());
-        return lmdbpp::ValueView<char>{_env, _dbi_document_content, lmdbpp::Val<decltype(hash)>{&hash}};
+        return ValueView<char>{_env, _dbi_document_content, Val<decltype(hash)>{&hash}};
     }
 
     size_t word_occurrence_count(const std::string& word)
     {
         size_t count = 0;
-        lmdbpp::KeyVal<char, WordIdx> kv{{word}, {}};
-        lmdbpp::Txn txn{_env, MDB_RDONLY, true};
-        lmdbpp::Cursor c{txn, _dbi_word_idx, true};
+        KeyVal<char, WordIdx> kv{{word}, {}};
+        Txn txn{_env, MDB_RDONLY, true};
+        Cursor c{txn, _dbi_word_idx, true};
         try
         {
             c.get(kv, MDB_SET);
@@ -132,20 +138,43 @@ public:
                 c.get(kv, MDB_NEXT_MULTIPLE);
             }
         }
-        catch (lmdbpp::Error& e)
+        catch (Error& e)
         {
-            if (e.code != MDB_NOTFOUND) throw;
+            if (e.code != MDB_NOTFOUND)
+                throw;
         }
         return count;
     }
 
-    // TODO: make this something iterable that doesn't load all words into memory
-    auto word_list() { return lmdbpp::KeyIterator<char>{_env, _dbi_word_idx, true}; }
+    auto word_list()
+    {
+        return KeyIteratable<char>{_env, _dbi_word_idx};
+    }
+
+    void test()
+    {
+        KeyValIteratable<WordIdx, char> kv{_env, _dbi_document_info};
+        for (auto& n : kv)
+        {
+            std::cout << n.val.size() << "\n";
+        }
+        /*
+        {
+            auto && __range = kv;
+            auto __end = kv.end();
+            for (auto __begin = kv.begin(); __begin != __end; ++__begin)
+            {
+                auto& n = *kv;
+                std::cout<<std::string{n.val.data(), n.val.size()}<<" "<<*(uint64_t*)n.key.data()<<"\n";
+            }
+        }
+        */
+    }
 
     std::string document_info(uint32_t hash)
     {
-        lmdbpp::Txn txn{_env, MDB_RDONLY, true};
-        lmdbpp::KeyVal<decltype(hash), char> kv{{&hash, sizeof(hash)}, {}};
+        Txn txn{_env, MDB_RDONLY, true};
+        KeyVal<decltype(hash), char> kv{{&hash, sizeof(hash)}, {}};
         txn.get(_dbi_document_info, kv);
         return kv.val.as_str();
     }
@@ -158,10 +187,10 @@ private:
         return (uint32_t)h;
     }
 
-    lmdbpp::Env _env;
-    lmdbpp::Dbi _dbi_word_idx;
-    lmdbpp::Dbi _dbi_document_info;
-    lmdbpp::Dbi _dbi_document_content;
+    Env _env;
+    Dbi _dbi_word_idx;
+    Dbi _dbi_document_info;
+    Dbi _dbi_document_content;
 };
 
 #endif

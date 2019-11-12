@@ -44,8 +44,7 @@ int main(int argc, char** argv)
         if (verb == "indices")
         {
             std::string& word{*(++arg)};
-            auto it = lft.word_indices(word);
-            for (const auto& i : it)
+            for (auto& i : lft.word_indices(word))
             {
                 std::cout << i.n << '\n';
             }

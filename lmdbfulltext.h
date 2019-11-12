@@ -111,9 +111,9 @@ public:
         return add_document(name, mmap.ptr(), mmap.size());
     }
 
-    MultipleValueView<WordIdx> word_indices(const std::string& word)
+    auto word_indices(const std::string& word)
     {
-        return MultipleValueView<WordIdx>{_env, _dbi_word_idx, Val<char>{word}};
+        return MultipleValueIteratable<char, WordIdx>{_env, _dbi_word_idx, Val<char>{word}};
     }
 
     ValueView<char> view_document(const std::string& name)

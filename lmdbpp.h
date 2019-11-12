@@ -100,7 +100,7 @@ public:
     }
     Val(const Val& o) = default;
 
-    T* data()
+    T* data() const
     {
         return (T*)_val.mv_data;
     }
@@ -108,7 +108,7 @@ public:
     {
         _val.mv_data = d;
     }
-    size_t size()
+    size_t size() const
     {
         return _val.mv_size;
     }
@@ -137,7 +137,7 @@ std::string Val<char>::to_str() const
     return std::string{(char*)_val.mv_data, _val.mv_size};
 }
 
-std::string_view val_to_string_view(Val<char>& val)
+std::string_view val_to_string_view(const Val<char>& val)
 {
     return std::string_view{val.data(), val.size()};
 }

@@ -4,6 +4,7 @@
 #include <lmdb.h>
 #include <stdexcept>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -13,17 +14,69 @@ class Error : public std::runtime_error
 {
 public:
     const int code;
-    Error(const char* what, const int return_code)
-        : runtime_error{what}
+    Error(int return_code)
+        : runtime_error{mdb_strerror(return_code)}
         , code(return_code)
     {
     }
 };
 
+// clang-format off
+class KeyExistsError : public Error{using Error::Error;};
+class NotFoundError : public Error{using Error::Error;};
+class PageNotFoundError : public Error{using Error::Error;};
+class CorruptedError : public Error{using Error::Error;};
+class PanicError : public Error{using Error::Error;};
+class VersionMismatchError : public Error{using Error::Error;};
+class InvalidError : public Error{using Error::Error;};
+class MapFullError : public Error{using Error::Error;};
+class DbsFullError : public Error{using Error::Error;};
+class ReadersFullError : public Error{using Error::Error;};
+class TlsFullError : public Error{using Error::Error;};
+class TxnFullError : public Error{using Error::Error;};
+class CursorFullError : public Error{using Error::Error;};
+class PageFullError : public Error{using Error::Error;};
+class MapResizedError : public Error{using Error::Error;};
+class IncompatibleError : public Error{using Error::Error;};
+class BadRslotError : public Error{using Error::Error;};
+class BadTxnError : public Error{using Error::Error;};
+class BadValsizeError : public Error{using Error::Error;};
+class BadDbiError : public Error{using Error::Error;};
+class ProblemError : public Error{using Error::Error;};
+
+const std::unordered_map<int, void (*)(int)> _error_map{
+    {MDB_KEYEXIST, [](int code){throw KeyExistsError(code);}},
+    {MDB_NOTFOUND, [](int code){throw NotFoundError(code);}},
+    {MDB_PAGE_NOTFOUND, [](int code){throw PageNotFoundError(code);}},
+    {MDB_CORRUPTED, [](int code){throw CorruptedError(code);}},
+    {MDB_PANIC, [](int code){throw PanicError(code);}},
+    {MDB_VERSION_MISMATCH, [](int code){throw VersionMismatchError(code);}},
+    {MDB_INVALID, [](int code){throw InvalidError(code);}},
+    {MDB_MAP_FULL, [](int code){throw MapFullError(code);}},
+    {MDB_DBS_FULL, [](int code){throw DbsFullError(code);}},
+    {MDB_READERS_FULL, [](int code){throw ReadersFullError(code);}},
+    {MDB_TLS_FULL, [](int code){throw TlsFullError(code);}},
+    {MDB_TXN_FULL, [](int code){throw TxnFullError(code);}},
+    {MDB_CURSOR_FULL, [](int code){throw CursorFullError(code);}},
+    {MDB_PAGE_FULL, [](int code){throw PageFullError(code);}},
+    {MDB_MAP_RESIZED, [](int code){throw MapResizedError(code);}},
+    {MDB_INCOMPATIBLE, [](int code){throw IncompatibleError(code);}},
+    {MDB_BAD_RSLOT, [](int code){throw BadRslotError(code);}},
+    {MDB_BAD_TXN, [](int code){throw BadTxnError(code);}},
+    {MDB_BAD_VALSIZE, [](int code){throw BadValsizeError(code);}},
+    {MDB_BAD_DBI, [](int code){throw BadDbiError(code);}}
+};
+// clang-format on
+
 void check(int return_code)
 {
-    if (return_code)
-        throw Error{mdb_strerror(return_code), return_code};
+    if (!return_code)
+        return;
+    auto func = _error_map.find(return_code);
+    if (func != _error_map.end())
+        func->second(return_code);
+    else
+        throw Error(return_code);
 }
 
 template <typename T = void>
@@ -411,21 +464,32 @@ public:
     ValueView(MDB_env* env, MDB_dbi dbi, MDB_val* key)
         : _txn{env, MDB_RDONLY, true}
     {
-        _txn.get(dbi, key, &_val);
+        _txn.get(dbi, key, _val);
+    }
+
+    ValueView(ValueView& o)
+        : _txn{o._txn}
+        , _val{o._val}
+    {
     }
 
     const T* ptr()
     {
-        return (T*)_val.mv_data;
+        return _val.data();
     }
 
     size_t size()
     {
-        return _val.mv_size;
+        return _val.size();
+    }
+
+    std::string to_string() const
+    {
+        return _val.to_str();
     }
 
 private:
-    MDB_val _val{0, 0};
+    Val<T> _val{0, 0};
     Txn _txn;
 };
 

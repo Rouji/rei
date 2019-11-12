@@ -71,7 +71,7 @@ public:
             {
                 _c.get(this->_data, this->_data.key.data() == nullptr ? MDB_FIRST : MDB_NEXT);
             }
-            catch (Error& e)
+            catch (Error& e) //TODO: make this specific
             {
                 this->_end = true;
             }

@@ -46,7 +46,7 @@ int main(int argc, char** argv)
             std::string& word{*(++arg)};
             for (auto& i : lft.word_indices(word))
             {
-                std::cout << i.n << '\n';
+                std::cout << std::hex << i.n << '\n';
             }
         }
         else if (verb == "count")

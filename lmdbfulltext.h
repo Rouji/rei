@@ -54,17 +54,10 @@ public:
             {
                 txn.put(_dbi_document_info, kv, MDB_NOOVERWRITE);
             }
-            catch (Error& e)
+            catch (KeyExistsError& e)
             {
-                if (e.code == MDB_KEYEXIST)
-                {
-                    std::cout << "document " << name << " already exists" << std::endl;  // TODO
-                    return false;
-                }
-                else
-                {
-                    throw;
-                }
+                std::cout << "document " << name << " already exists" << std::endl;  // TODO
+                return false;
             }
 
             txn.put(_dbi_document_content, kv.key, Val<void>{ptr, size});
@@ -138,10 +131,8 @@ public:
                 c.get(kv, MDB_NEXT_MULTIPLE);
             }
         }
-        catch (Error& e)
+        catch (NotFoundError& e)
         {
-            if (e.code != MDB_NOTFOUND)
-                throw;
         }
         return count;
     }

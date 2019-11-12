@@ -71,7 +71,7 @@ public:
             {
                 _c.get(this->_data, this->_data.key.data() == nullptr ? MDB_FIRST : MDB_NEXT);
             }
-            catch (Error& e) //TODO: make this specific
+            catch (NotFoundError& e)
             {
                 this->_end = true;
             }
@@ -134,7 +134,7 @@ public:
                     _c.get(this->_data, _unused_val, MDB_NEXT);
                 }
             }
-            catch (Error& e)
+            catch (NotFoundError& e)
             {
                 this->_end = true;
             }
@@ -204,7 +204,7 @@ public:
                         _c.get(_kv, MDB_NEXT_MULTIPLE);
                     }
                 }
-                catch (Error& e)
+                catch (NotFoundError& e)
                 {
                     this->_end = true;
                 }

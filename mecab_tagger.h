@@ -1,4 +1,6 @@
-//TODO: include guard thingy
+#ifndef __mecab_tagger_h
+#define __mecab_tagger_h
+
 #include <string>
 #include <mecab.h>
 #include <unordered_set>
@@ -113,3 +115,5 @@ private:
 
 const std::unordered_set<std::string> MecabParser::default_stopwords = { "。", "？", "?", "、" };
 }
+
+#endif

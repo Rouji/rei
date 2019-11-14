@@ -22,50 +22,54 @@ public:
 };
 
 // clang-format off
-class KeyExistsError : public Error{using Error::Error;};
-class NotFoundError : public Error{using Error::Error;};
-class PageNotFoundError : public Error{using Error::Error;};
-class CorruptedError : public Error{using Error::Error;};
-class PanicError : public Error{using Error::Error;};
-class VersionMismatchError : public Error{using Error::Error;};
-class InvalidError : public Error{using Error::Error;};
-class MapFullError : public Error{using Error::Error;};
-class DbsFullError : public Error{using Error::Error;};
-class ReadersFullError : public Error{using Error::Error;};
-class TlsFullError : public Error{using Error::Error;};
-class TxnFullError : public Error{using Error::Error;};
-class CursorFullError : public Error{using Error::Error;};
-class PageFullError : public Error{using Error::Error;};
-class MapResizedError : public Error{using Error::Error;};
-class IncompatibleError : public Error{using Error::Error;};
-class BadRslotError : public Error{using Error::Error;};
-class BadTxnError : public Error{using Error::Error;};
-class BadValsizeError : public Error{using Error::Error;};
-class BadDbiError : public Error{using Error::Error;};
-class ProblemError : public Error{using Error::Error;};
+#define _ERR(NAME) class NAME : public Error{using Error::Error;}
+_ERR(KeyExistsError);
+_ERR(NotFoundError);
+_ERR(PageNotFoundError);
+_ERR(CorruptedError);
+_ERR(PanicError);
+_ERR(VersionMismatchError);
+_ERR(InvalidError);
+_ERR(MapFullError);
+_ERR(DbsFullError);
+_ERR(ReadersFullError);
+_ERR(TlsFullError);
+_ERR(TxnFullError);
+_ERR(CursorFullError);
+_ERR(PageFullError);
+_ERR(MapResizedError);
+_ERR(IncompatibleError);
+_ERR(BadRslotError);
+_ERR(BadTxnError);
+_ERR(BadValsizeError);
+_ERR(BadDbiError);
+_ERR(ProblemError);
+#undef _ERR
 
+#define _MAP(CODE, NAME) {CODE, [](int code){throw NAME(code);}}
 const std::unordered_map<int, void (*)(int)> _error_map{
-    {MDB_KEYEXIST, [](int code){throw KeyExistsError(code);}},
-    {MDB_NOTFOUND, [](int code){throw NotFoundError(code);}},
-    {MDB_PAGE_NOTFOUND, [](int code){throw PageNotFoundError(code);}},
-    {MDB_CORRUPTED, [](int code){throw CorruptedError(code);}},
-    {MDB_PANIC, [](int code){throw PanicError(code);}},
-    {MDB_VERSION_MISMATCH, [](int code){throw VersionMismatchError(code);}},
-    {MDB_INVALID, [](int code){throw InvalidError(code);}},
-    {MDB_MAP_FULL, [](int code){throw MapFullError(code);}},
-    {MDB_DBS_FULL, [](int code){throw DbsFullError(code);}},
-    {MDB_READERS_FULL, [](int code){throw ReadersFullError(code);}},
-    {MDB_TLS_FULL, [](int code){throw TlsFullError(code);}},
-    {MDB_TXN_FULL, [](int code){throw TxnFullError(code);}},
-    {MDB_CURSOR_FULL, [](int code){throw CursorFullError(code);}},
-    {MDB_PAGE_FULL, [](int code){throw PageFullError(code);}},
-    {MDB_MAP_RESIZED, [](int code){throw MapResizedError(code);}},
-    {MDB_INCOMPATIBLE, [](int code){throw IncompatibleError(code);}},
-    {MDB_BAD_RSLOT, [](int code){throw BadRslotError(code);}},
-    {MDB_BAD_TXN, [](int code){throw BadTxnError(code);}},
-    {MDB_BAD_VALSIZE, [](int code){throw BadValsizeError(code);}},
-    {MDB_BAD_DBI, [](int code){throw BadDbiError(code);}}
+    _MAP(MDB_KEYEXIST, KeyExistsError),
+    _MAP(MDB_NOTFOUND, NotFoundError),
+    _MAP(MDB_PAGE_NOTFOUND, PageNotFoundError),
+    _MAP(MDB_CORRUPTED, CorruptedError),
+    _MAP(MDB_PANIC, PanicError),
+    _MAP(MDB_VERSION_MISMATCH, VersionMismatchError),
+    _MAP(MDB_INVALID, InvalidError),
+    _MAP(MDB_MAP_FULL, MapFullError),
+    _MAP(MDB_DBS_FULL, DbsFullError),
+    _MAP(MDB_READERS_FULL, ReadersFullError),
+    _MAP(MDB_TLS_FULL, TlsFullError),
+    _MAP(MDB_TXN_FULL, TxnFullError),
+    _MAP(MDB_CURSOR_FULL, CursorFullError),
+    _MAP(MDB_PAGE_FULL, PageFullError),
+    _MAP(MDB_MAP_RESIZED, MapResizedError),
+    _MAP(MDB_INCOMPATIBLE, IncompatibleError),
+    _MAP(MDB_BAD_RSLOT, BadRslotError),
+    _MAP(MDB_BAD_TXN, BadTxnError),
+    _MAP(MDB_BAD_VALSIZE, BadValsizeError),
+    _MAP(MDB_BAD_DBI, BadDbiError)
 };
+#undef _MAP
 // clang-format on
 
 void check(int return_code)

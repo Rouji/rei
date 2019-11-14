@@ -1,20 +1,16 @@
+//TODO: include guard thingy
 #include <string>
 #include <mecab.h>
 #include <unordered_set>
+#include "tagger.h"
 
-class MecabParser
+namespace tagger
+{
+
+class MecabParser : public Tagger
 {
 public:
     static const std::unordered_set<std::string> default_stopwords;
-
-    struct Node
-    {
-        uint32_t location;   // offset in bytes inside the document
-        std::string feature; // original feature string
-        std::string word;    // word as encountered in document
-        std::string base;    // base form of word
-        std::string reading; // reading in kana
-    };
 
     MecabParser(char const *input, std::size_t size, const std::unordered_set<std::string>& stopwords = default_stopwords)
         : input(input), tagger{0}, size(size), mc_node(nullptr), _stopwords(stopwords)
@@ -51,9 +47,8 @@ public:
     }
 
 private:
-    class Span
+    struct Span
     {
-    public:
         Span(std::size_t s, std::size_t e) : start(s), end(e) {}
         Span() : start(0), end(0) {}
         std::size_t length() const
@@ -117,3 +112,4 @@ private:
 };
 
 const std::unordered_set<std::string> MecabParser::default_stopwords = { "。", "？", "?", "、" };
+}

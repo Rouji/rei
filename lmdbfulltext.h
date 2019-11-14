@@ -10,10 +10,11 @@
 #include <vector>
 #include "lmdbpp.h"
 #include "lmdbpp_containers.h"
-#include "mecabparser.h"
+#include "mecab_tagger.h"
 #include "mmap.h"
 
 using namespace lmdbpp;
+using tagger::MecabParser;
 
 class LmdbFullText
 {
@@ -69,7 +70,7 @@ public:
 
         MDB_txn* txn;
         WordIdx idx;
-        for (MecabParser::Node n; parser.next(n);)
+        for (tagger::Node n; parser.next(n);)
         {
             auto it = word_locations.find(n.base);
             if (it == word_locations.end())

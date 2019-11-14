@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace tagger
+namespace tagging
 {
 
 struct Node

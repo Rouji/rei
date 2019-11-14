@@ -6,15 +6,15 @@
 #include <unordered_set>
 #include "tagger.h"
 
-namespace tagger
+namespace tagging
 {
 
-class MecabParser : public Tagger
+class MecabTagger : public Tagger
 {
 public:
     static const std::unordered_set<std::string> default_stopwords;
 
-    MecabParser(char const *input, std::size_t size, const std::unordered_set<std::string>& stopwords = default_stopwords)
+    MecabTagger(char const *input, std::size_t size, const std::unordered_set<std::string>& stopwords = default_stopwords)
         : input(input), tagger{0}, size(size), mc_node(nullptr), _stopwords(stopwords)
     {
         tagger = MeCab::createTagger("");
@@ -43,7 +43,7 @@ public:
         return next(out_node);
     }
 
-    ~MecabParser()
+    ~MecabTagger()
     {
         if (tagger) delete tagger;
     }
@@ -113,7 +113,7 @@ private:
     }
 };
 
-const std::unordered_set<std::string> MecabParser::default_stopwords = { "。", "？", "?", "、" };
+const std::unordered_set<std::string> MecabTagger::default_stopwords = { "。", "？", "?", "、" };
 }
 
 #endif

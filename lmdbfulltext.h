@@ -14,7 +14,7 @@
 #include "mmap.h"
 
 using namespace lmdbpp;
-using tagger::MecabParser;
+using tagging::MecabTagger;
 
 class LmdbFullText
 {
@@ -64,13 +64,13 @@ public:
             txn.put(_dbi_document_content, kv.key, Val<void>{ptr, size});
         }
 
-        MecabParser parser{(const char*)ptr, size};
+        MecabTagger tagger{(const char*)ptr, size};
 
         std::unordered_map<std::string, std::vector<WordIdx>> word_locations{};
 
         MDB_txn* txn;
         WordIdx idx;
-        for (tagger::Node n; parser.next(n);)
+        for (tagging::Node n; tagger.next(n);)
         {
             auto it = word_locations.find(n.base);
             if (it == word_locations.end())

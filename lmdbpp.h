@@ -94,29 +94,35 @@ public:
         : _val{sizeof(T), (void*)data}
     {
     }
+
     Val(const T* data, size_t size)
         : _val{size, (void*)data}
     {
     }
+
     Val(const std::string& str)
         : _val{str.length(), (void*)str.c_str()}
     {
     }
+
     Val(const Val& o) = default;
 
     T* data() const
     {
         return (T*)_val.mv_data;
     }
+
     void data(T* d)
     {
         _val.mv_data = d;
     }
+
     size_t size() const
     {
         return _val.mv_size;
     }
     void size(size_t s)
+
     {
         _val.mv_size = s;
     }
@@ -199,10 +205,12 @@ public:
     {
         check(mdb_env_set_maxdbs(_env, n));
     }
+
     void set_mapsize(size_t size)
     {
         check(mdb_env_set_mapsize(_env, size));
     }
+
     void open(const std::string& path, unsigned int flags = 0, mdb_mode_t mode = 0644)
     {
         check(mdb_env_open(_env, path.c_str(), flags, mode));
@@ -315,6 +323,7 @@ public:
     {
         check(mdb_cursor_get(_cursor, key, val, op));
     }
+
     void get(MDB_val* key, MDB_cursor_op op)
     {
         get(key, nullptr, op);
@@ -399,6 +408,7 @@ public:
     {
         check(mdb_txn_commit(_txn));
     }
+
     void abort()
     {
         mdb_txn_abort(_txn);
@@ -408,6 +418,7 @@ public:
     {
         check(mdb_get(_txn, dbi, key, val));
     }
+
     void get(MDB_dbi dbi, MDB_val* key)
     {
         get(dbi, key, nullptr);
@@ -434,10 +445,12 @@ public:
     {
         return Dbi(_env, _txn, name, flags);
     }
+
     Dbi open_dbi(const std::string& name, unsigned int flags = 0)
     {
         return open_dbi(name.c_str(), flags);
     }
+
     Dbi open_dbi(unsigned int flags = 0)
     {
         return open_dbi(nullptr, flags);

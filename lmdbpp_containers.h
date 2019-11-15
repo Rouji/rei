@@ -20,18 +20,22 @@ public:
         , _end(o._end)
     {
     }
+
     bool operator!=(const IteratorSentinel& o)
     {
         return !_end;
     }
+
     TData& operator*()
     {
         return _data;
     }
+
     TData* operator->()
     {
         return &_data;
     }
+
     IteratorBase& operator++()
     {
         this->next();
@@ -42,6 +46,7 @@ protected:
     IteratorBase()
     {
     }
+
     virtual void next() = 0;
 
     TData _data;
@@ -84,11 +89,13 @@ public:
         {
             next();
         }
+
         Iterator(Iterator& o)
             : IteratorBase<KeyVal<TKey, TVal>>(o)
             , _c{o._c}
         {
         }
+
         Cursor _c;
     };
 
@@ -97,6 +104,7 @@ public:
         , _dbi(dbi)
     {
     }
+
     KeyValIteratable(KeyValIteratable& o)
         : _txn{o._txn}
     {
@@ -164,6 +172,7 @@ public:
         , _dbi(dbi)
     {
     }
+
     KeyIteratable(KeyIteratable& o)
         : _txn{o._txn}
         , _dbi(o._dbi)
@@ -239,6 +248,7 @@ public:
         , _key{key}
     {
     }
+
     MultipleValueIteratable(MultipleValueIteratable& o)
         : _txn{o._txn}
         , _dbi(o._dbi)

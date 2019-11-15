@@ -213,6 +213,7 @@ public:
         return _env;
     }
 
+private:
     MDB_env* _env = nullptr;
 };
 
@@ -345,11 +346,10 @@ public:
         return _cursor;
     }
 
+private:
     MDB_txn* _txn = nullptr;
     MDB_dbi _dbi = -1;
     MDB_cursor* _cursor = nullptr;
-
-private:
     bool _autoclose = false;
 };
 
@@ -453,10 +453,9 @@ public:
         return _txn;
     }
 
+private:
     MDB_txn* _txn = nullptr;
     MDB_env* _env = nullptr;
-
-private:
     bool _autocommit = false;
 };
 

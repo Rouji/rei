@@ -36,7 +36,8 @@ int main(int argc, char** argv)
         else if (verb == "print")
         {
             auto view = lft.view_document(name);
-            std::cout << std::string_view{view.ptr(), view.size()} << std::endl;
+            //std::cout << std::string_view{view.ptr(), view.size()} << std::endl;
+            std::cout<<lmdbpp::val_to_string_view(view)<<std::endl;
         }
     }
     else if (noun == "word")

@@ -491,6 +491,11 @@ public:
         return _val.to_str();
     }
 
+    operator const Val<T>&() const
+    {
+        return _val;
+    }
+
 private:
     Val<T> _val{0, 0};
     Txn _txn;
